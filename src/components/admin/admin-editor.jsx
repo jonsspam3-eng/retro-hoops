@@ -858,8 +858,10 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
             <div className="preview-image-grid">
               {preview.photos.map((item) => (
                 <figure key={item.id}>
-                  <img src={item.image} alt={item.title} />
-                  <figcaption>{item.title}</figcaption>
+                  <div className="preview-image-thumb" aria-hidden="true" />
+                  <figcaption>
+                    {item.title} / {item.image}
+                  </figcaption>
                 </figure>
               ))}
             </div>
