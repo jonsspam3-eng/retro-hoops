@@ -1,22 +1,25 @@
 import Image from "next/image";
-import { brandConfig } from "@/data/brand-config";
-import { moodboardEntries } from "@/data/moodboard";
-import { siteContent } from "@/data/site-content";
+import { getContentStore } from "@/lib/content-store";
 
-export const metadata = {
-  title: `Moodboard — ${brandConfig.siteName}`,
-};
+export async function generateMetadata() {
+  const content = await getContentStore();
+  return {
+    title: `Moodboard — ${content.site.siteName}`,
+  };
+}
 
-export default function MoodboardPage() {
+export default async function MoodboardPage() {
+  const content = await getContentStore();
+
   return (
     <section className="content-page">
       <header className="section-header">
-        <h1>{siteContent.pageHeaders.moodboard.title}</h1>
-        <p>{siteContent.pageHeaders.moodboard.description}</p>
+        <h1>{content.pageHeaders.moodboard.title}</h1>
+        <p>{content.pageHeaders.moodboard.description}</p>
       </header>
 
       <ul className="moodboard-grid">
-        {moodboardEntries.map((entry) => (
+        {content.moodboardItems.map((entry) => (
           <li key={entry.id}>
             <article className="mood-card">
               <Image src={entry.image} alt={entry.title} width={1200} height={1200} />

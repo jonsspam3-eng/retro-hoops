@@ -1,31 +1,32 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { brandConfig } from "@/data/brand-config";
-import { projects } from "@/data/projects";
-import { siteContent } from "@/data/site-content";
+import { getContentStore, readContentStore } from "@/lib/content-store";
 
-export function generateStaticParams() {
-  return projects.map((project) => ({
+export async function generateStaticParams() {
+  const content = await readContentStore();
+  return content.projects.map((project) => ({
     slug: project.slug,
   }));
 }
 
-export function generateMetadata({ params }) {
-  const project = projects.find((entry) => entry.slug === params.slug);
+export async function generateMetadata({ params }) {
+  const content = await readContentStore();
+  const project = content.projects.find((entry) => entry.slug === params.slug);
   if (!project) {
     return {
-      title: `Project not found — ${brandConfig.siteName}`,
+      title: `Project not found — ${content.site.siteName}`,
     };
   }
 
   return {
-    title: `${project.title} — ${brandConfig.siteName}`,
+    title: `${project.title} — ${content.site.siteName}`,
   };
 }
 
-export default function ProjectDetailPage({ params }) {
-  const project = projects.find((entry) => entry.slug === params.slug);
+export default async function ProjectDetailPage({ params }) {
+  const content = await getContentStore();
+  const project = content.projects.find((entry) => entry.slug === params.slug);
 
   if (!project) {
     notFound();
@@ -34,7 +35,7 @@ export default function ProjectDetailPage({ params }) {
   return (
     <article className="project-detail">
       <Link href="/projects" className="back-link">
-        {siteContent.projectDetail.backLabel}
+        {content.projectDetail.backLabel}
       </Link>
 
       <header>

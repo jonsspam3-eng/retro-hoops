@@ -1,18 +1,15 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { brandConfig } from "@/data/brand-config";
-
-const DEFAULT_THEME = brandConfig.defaultTheme === "light" ? "light" : "dark";
 
 const ThemeContext = createContext({
-  theme: DEFAULT_THEME,
+  theme: "dark",
   toggleTheme: () => {},
 });
 
-function getInitialTheme() {
+function getInitialTheme(defaultTheme) {
   if (typeof window === "undefined") {
-    return DEFAULT_THEME;
+    return defaultTheme;
   }
 
   const stored = window.localStorage.getItem("theme");
@@ -20,11 +17,12 @@ function getInitialTheme() {
     return stored;
   }
 
-  return DEFAULT_THEME;
+  return defaultTheme;
 }
 
-export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => getInitialTheme());
+export function ThemeProvider({ children, defaultTheme = "dark" }) {
+  const resolvedDefaultTheme = defaultTheme === "light" ? "light" : "dark";
+  const [theme, setTheme] = useState(() => getInitialTheme(resolvedDefaultTheme));
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

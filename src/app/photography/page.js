@@ -1,30 +1,30 @@
 import { ArchiveBottomLinks } from "@/components/archive-bottom-links";
 import { PhotographyArchive } from "@/components/photography-archive";
-import { brandConfig } from "@/data/brand-config";
-import {
-  photographyCategories,
-  photographyEntries,
-} from "@/data/photography";
-import { siteContent } from "@/data/site-content";
+import { getContentStore } from "@/lib/content-store";
 
-export const metadata = {
-  title: `Photography — ${brandConfig.siteName}`,
-};
+export async function generateMetadata() {
+  const content = await getContentStore();
+  return {
+    title: `Photography — ${content.site.siteName}`,
+  };
+}
 
-export default function PhotographyPage() {
+export default async function PhotographyPage() {
+  const content = await getContentStore();
+
   return (
     <section className="content-page">
       <header className="section-header">
-        <h1>{siteContent.pageHeaders.photography.title}</h1>
-        <p>{siteContent.pageHeaders.photography.description}</p>
+        <h1>{content.pageHeaders.photography.title}</h1>
+        <p>{content.pageHeaders.photography.description}</p>
       </header>
 
       <PhotographyArchive
-        entries={photographyEntries}
-        categories={photographyCategories}
+        entries={content.photographyItems}
+        categories={content.photographyCategories}
       />
 
-      <ArchiveBottomLinks />
+      <ArchiveBottomLinks links={content.archiveBottomLinks} />
     </section>
   );
 }

@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { siteContent } from "@/data/site-content";
 
-export function SiteFooter() {
+export function SiteFooter({ footerNote = "", socialLinks = [] }) {
   return (
     <footer className="site-footer">
       <div className="footer-inner">
-        <small>{siteContent.footerNote}</small>
+        <small>{footerNote}</small>
         <ul className="footer-links" aria-label="Social links">
-          {siteContent.socialLinks.map((item) => (
+          {socialLinks.map((item) => (
             <li key={item.href}>
               <Link href={item.href} target="_blank" rel="noreferrer">
                 {item.label}

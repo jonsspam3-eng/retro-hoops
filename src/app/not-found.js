@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { siteContent } from "@/data/site-content";
+import { getContentStore } from "@/lib/content-store";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const content = await getContentStore();
+
   return (
     <section className="content-page prose-page">
       <header className="section-header">
-        <h1>{siteContent.notFound.title}</h1>
+        <h1>{content.notFound.title}</h1>
       </header>
-      <p>{siteContent.notFound.message}</p>
-      <Link href="/">{siteContent.notFound.backLabel}</Link>
+      <p>{content.notFound.message}</p>
+      <Link href="/">{content.notFound.backLabel}</Link>
     </section>
   );
 }

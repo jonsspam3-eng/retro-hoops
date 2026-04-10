@@ -1,27 +1,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArchiveBottomLinks } from "@/components/archive-bottom-links";
-import { brandConfig } from "@/data/brand-config";
-import { projects } from "@/data/projects";
-import { siteContent } from "@/data/site-content";
+import { getContentStore } from "@/lib/content-store";
 
-export const metadata = {
-  title: `Projects — ${brandConfig.siteName}`,
-};
+export async function generateMetadata() {
+  const content = await getContentStore();
+  return {
+    title: `Projects — ${content.site.siteName}`,
+  };
+}
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const content = await getContentStore();
+
   return (
     <section className="content-page">
       <header className="section-header">
-        <h1>{siteContent.pageHeaders.projects.title}</h1>
-        <p>{siteContent.pageHeaders.projects.description}</p>
+        <h1>{content.pageHeaders.projects.title}</h1>
+        <p>{content.pageHeaders.projects.description}</p>
       </header>
 
       <ul className="project-grid">
-        {projects.map((project) => (
+        {content.projects.map((project) => (
           <li key={project.slug}>
             <Link href={`/projects/${project.slug}`} className="project-card">
-              {/* Replace image paths in src/data/projects.js with real project visuals. */}
+              {/* Replace image paths from /admin or src/data/content-store.json. */}
               <Image
                 src={project.image}
                 alt={project.title}
@@ -37,7 +40,7 @@ export default function ProjectsPage() {
         ))}
       </ul>
 
-      <ArchiveBottomLinks />
+      <ArchiveBottomLinks links={content.archiveBottomLinks} />
     </section>
   );
 }

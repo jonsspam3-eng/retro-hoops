@@ -1,29 +1,33 @@
 import Link from "next/link";
-import { brandConfig } from "@/data/brand-config";
-import { siteContent } from "@/data/site-content";
+import { getContentStore } from "@/lib/content-store";
 
-export const metadata = {
-  title: `Contact — ${brandConfig.siteName}`,
-};
+export async function generateMetadata() {
+  const content = await getContentStore();
+  return {
+    title: `Contact — ${content.site.siteName}`,
+  };
+}
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const content = await getContentStore();
+
   return (
     <section className="content-page prose-page">
       <header className="section-header">
-        <h1>{siteContent.pageHeaders.contact.title}</h1>
+        <h1>{content.pageHeaders.contact.title}</h1>
       </header>
 
-      <p>{siteContent.contact.intro}</p>
-      <p>{siteContent.contact.collaborationLine}</p>
+      <p>{content.contact.intro}</p>
+      <p>{content.contact.collaborationLine}</p>
 
       <ul className="contact-list">
         <li>
           email:{" "}
-          <Link href={`mailto:${siteContent.contact.email}`}>
-            {siteContent.contact.email}
+          <Link href={`mailto:${content.contact.email}`}>
+            {content.contact.email}
           </Link>
         </li>
-        {siteContent.socialLinks.map((social) => (
+        {content.socialLinks.map((social) => (
           <li key={social.label}>
             {social.label}:{" "}
             <Link href={social.href} target="_blank" rel="noreferrer">

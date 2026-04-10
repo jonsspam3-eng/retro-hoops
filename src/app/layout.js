@@ -2,29 +2,36 @@ import "./globals.css";
 import { MainNav } from "@/components/main-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
-import { brandConfig } from "@/data/brand-config";
-import { siteContent } from "@/data/site-content";
+import { getContentStore } from "@/lib/content-store";
 
-export const metadata = {
-  title: `${brandConfig.siteName} — ${siteContent.siteTitle}`,
-  description: siteContent.siteDescription,
-};
+export async function generateMetadata() {
+  const content = await getContentStore();
+  return {
+    title: `${content.site.siteName} — ${content.site.siteTitle}`,
+    description: content.site.siteDescription,
+  };
+}
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const content = await getContentStore();
+
   return (
     <html lang="en">
       <body
         style={{
-          "--brand-primary": brandConfig.primaryColor,
-          "--brand-bg": brandConfig.backgroundColor,
-          "--brand-text": brandConfig.textColor,
+          "--brand-primary": content.site.primaryColor,
+          "--brand-bg": content.site.backgroundColor,
+          "--brand-text": content.site.textColor,
         }}
       >
-        <ThemeProvider>
+        <ThemeProvider defaultTheme={content.site.defaultTheme}>
           <div className="site-frame">
-            <MainNav />
+            <MainNav navigationLinks={content.navigationLinks} site={content.site} />
             <main className="page-main">{children}</main>
-            <SiteFooter />
+            <SiteFooter
+              footerNote={content.site.footerNote}
+              socialLinks={content.socialLinks}
+            />
           </div>
         </ThemeProvider>
       </body>

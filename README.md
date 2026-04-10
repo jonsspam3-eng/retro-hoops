@@ -20,45 +20,48 @@ npm run start
 
 ## How to Edit This Site
 
-Most edits happen in data files (no layout code needed).
+The easiest editing path is now the local admin page.
 
-1. **Branding (site name, logo, colors, default theme)**
-   - Edit: `src/data/brand-config.js`
-   - Change:
-     - `siteName`
-     - `logoPath`
-     - `primaryColor`
-     - `backgroundColor`
-     - `textColor`
-     - `defaultTheme` (`"dark"` or `"light"`)
-
-2. **Main text + links (navigation, homepage links, about, contact, socials)**
-   - Edit: `src/data/site-content.js`
-   - Change:
-     - navigation labels/URLs
-     - homepage directory links
-     - about page text
-     - contact email/info
-     - social links
-
-3. **Portfolio content**
-   - Photography items: `src/data/photography.js`
-   - Project items: `src/data/projects.js`
-   - Moodboard items: `src/data/moodboard.js`
-
-4. **Replace images**
-   - Put your image files in:
-     - `public/images/logo/`
-     - `public/images/photography/`
-     - `public/images/projects/`
-     - `public/images/moodboard/`
-   - Update file paths in the data files above.
-
-5. **Preview changes**
+1. Start the site:
    ```bash
    npm run dev
    ```
-   Then open [http://localhost:3000](http://localhost:3000).
+2. Open:
+   - Portfolio: [http://localhost:3000](http://localhost:3000)
+   - Admin editor: [http://localhost:3000/admin](http://localhost:3000/admin)
+3. Edit fields in `/admin` and click **Save Changes**.
+4. Refresh any portfolio page to see updates.
+
+### What the admin editor updates
+
+The `/admin` page edits a single source-of-truth file:
+
+- `src/data/content-store.json`
+
+It covers:
+- site title and branding values
+- logo path
+- homepage/navigation links
+- about text
+- contact info
+- social links
+- photography items
+- projects
+- moodboard items
+
+### Local save flow
+
+- The admin form sends updates to `POST /api/admin/content` (also supports `PUT`).
+- The API writes normalized JSON to `src/data/content-store.json`.
+- This editor is intended for localhost development use.
+
+### Optional manual editing
+
+You can still edit content manually by opening:
+
+- `src/data/content-store.json`
+
+The JSON keys map 1:1 to admin form sections.
 
 ## Replace placeholder images
 

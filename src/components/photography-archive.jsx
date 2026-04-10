@@ -42,7 +42,7 @@ export function PhotographyArchive({ entries, categories }) {
                   className="archive-card"
                   onClick={() => setActiveItem(entry)}
                 >
-                  {/* Replace image paths in src/data/photography.js with your own photos. */}
+                  {/* Replace image paths from /admin or src/data/content-store.json. */}
                   <Image
                     src={entry.image}
                     alt={`${entry.title} — ${entry.location}`}
