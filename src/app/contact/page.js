@@ -10,9 +10,15 @@ export async function generateMetadata() {
 
 export default async function ContactPage() {
   const content = await getContentStore();
+  const textAlignClass =
+    content.site.textAlign === "right"
+      ? "text-align-right"
+      : content.site.textAlign === "center"
+        ? "text-align-center"
+        : "text-align-left";
 
   return (
-    <section className="content-page prose-page">
+    <section className={`content-page prose-page ${textAlignClass}`}>
       <header className="section-header">
         <h1>{content.pageHeaders.contact.title}</h1>
       </header>

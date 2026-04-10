@@ -5,10 +5,16 @@ import { getContentStore } from "@/lib/content-store";
 
 export default async function HomePage() {
   const content = await getContentStore();
+  const homeAlignClass =
+    content.site.homeTextAlign === "right"
+      ? "is-align-right"
+      : content.site.homeTextAlign === "left"
+        ? "is-align-left"
+        : "is-align-center";
 
   return (
-    <section className="home-page">
-      <div className="home-wordmark-wrap">
+    <section className={`home-page ${homeAlignClass}`}>
+      <div className={`home-wordmark-wrap ${homeAlignClass}`}>
         <h1 className="home-wordmark">
           <LogoMark
             className="home-logo"
@@ -20,7 +26,7 @@ export default async function HomePage() {
         <NycClock locationLabel={content.site.locationLabel} />
       </div>
 
-      <nav className="home-directory" aria-label="Main sections">
+      <nav className={`home-directory ${homeAlignClass}`} aria-label="Main sections">
         <ul>
           {content.homepageLinks.map((item) => (
             <li key={item.href}>

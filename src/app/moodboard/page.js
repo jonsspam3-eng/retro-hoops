@@ -10,9 +10,10 @@ export async function generateMetadata() {
 
 export default async function MoodboardPage() {
   const content = await getContentStore();
+  const pageAlignClass = content.site.textAlign === "right" ? "is-right" : "is-left";
 
   return (
-    <section className="content-page">
+    <section className={`content-page ${pageAlignClass}`}>
       <header className="section-header">
         <h1>{content.pageHeaders.moodboard.title}</h1>
         <p>{content.pageHeaders.moodboard.description}</p>

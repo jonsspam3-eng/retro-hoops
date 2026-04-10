@@ -14,6 +14,8 @@ export async function generateMetadata() {
 
 export default async function RootLayout({ children }) {
   const content = await getContentStore();
+  const textAlign = content.site.textAlign || "left";
+  const homeTextAlign = content.site.homeTextAlign || "center";
 
   return (
     <html lang="en">
@@ -22,6 +24,8 @@ export default async function RootLayout({ children }) {
           "--brand-primary": content.site.primaryColor,
           "--brand-bg": content.site.backgroundColor,
           "--brand-text": content.site.textColor,
+          "--site-text-align": textAlign,
+          "--home-text-align": homeTextAlign,
         }}
       >
         <ThemeProvider defaultTheme={content.site.defaultTheme}>

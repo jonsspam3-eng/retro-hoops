@@ -9,9 +9,10 @@ export async function generateMetadata() {
 
 export default async function AboutPage() {
   const content = await getContentStore();
+  const textAlignClass = content.site.textAlign === "right" ? "text-right" : "text-left";
 
   return (
-    <section className="content-page prose-page">
+    <section className={`content-page prose-page ${textAlignClass}`}>
       <header className="section-header">
         <h1>{content.pageHeaders.about.title}</h1>
       </header>

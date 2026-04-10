@@ -1,8 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { unstable_noStore as noStore } from "next/cache";
 
 const CONTENT_FILE_PATH = path.join(process.cwd(), "src/data/content-store.json");
+const ADMIN_COOKIE_NAME = "portfolio_admin_session";
+const VALID_TEXT_ALIGNMENTS = ["left", "center", "right"];
 
 function parseJsonOrFallback(value, fallback) {
   try {
@@ -14,6 +17,11 @@ function parseJsonOrFallback(value, fallback) {
 
 function ensureArray(value, fallback = []) {
   return Array.isArray(value) ? value : fallback;
+}
+
+function sanitizeTextAlignment(value, fallback) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return VALID_TEXT_ALIGNMENTS.includes(normalized) ? normalized : fallback;
 }
 
 function sanitizeLinkItems(items) {
@@ -87,6 +95,8 @@ export const defaultContentStore = {
     backgroundColor: "#0a0a0a",
     textColor: "#f2f2f2",
     defaultTheme: "dark",
+    textAlign: "left",
+    homeTextAlign: "center",
   },
   navigationLinks: [
     { href: "/photography", label: "photography" },
@@ -196,6 +206,14 @@ export function normalizeContentStore(rawContent) {
         site.defaultTheme === "light" || site.defaultTheme === "dark"
           ? site.defaultTheme
           : defaultContentStore.site.defaultTheme,
+      textAlign: sanitizeTextAlignment(
+        site.textAlign,
+        defaultContentStore.site.textAlign,
+      ),
+      homeTextAlign: sanitizeTextAlignment(
+        site.homeTextAlign,
+        defaultContentStore.site.homeTextAlign,
+      ),
     },
     navigationLinks: sanitizeLinkItems(input.navigationLinks),
     homepageLinks: sanitizeLinkItems(input.homepageLinks),
@@ -299,5 +317,52 @@ export function isLocalAdminEnabled() {
     process.env.NODE_ENV !== "production" ||
     process.env.ENABLE_LOCAL_ADMIN === "true"
   );
+}
+
+function getAdminPassword() {
+  return String(process.env.ADMIN_PASSWORD ?? "").trim();
+}
+
+function getAdminSessionToken() {
+  const password = getAdminPassword();
+  if (!password) {
+    return "";
+  }
+
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+export function getAdminCookieName() {
+  return ADMIN_COOKIE_NAME;
+}
+
+export function isAdminPasswordRequired() {
+  return Boolean(getAdminPassword());
+}
+
+export function verifyAdminPassword(candidatePassword) {
+  const expected = getAdminSessionToken();
+  if (!expected) {
+    return true;
+  }
+
+  const candidate = crypto
+    .createHash("sha256")
+    .update(String(candidatePassword ?? ""))
+    .digest("hex");
+  return candidate === expected;
+}
+
+export function isAdminSessionValid(cookieValue) {
+  const expected = getAdminSessionToken();
+  if (!expected) {
+    return true;
+  }
+
+  return String(cookieValue ?? "") === expected;
+}
+
+export function getAdminSessionCookieValue() {
+  return getAdminSessionToken();
 }
 

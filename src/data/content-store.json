@@ -9,7 +9,9 @@
     "primaryColor": "#a13a3a",
     "backgroundColor": "#0a0a0a",
     "textColor": "#f2f2f2",
-    "defaultTheme": "dark"
+    "defaultTheme": "dark",
+    "textAlign": "left",
+    "homeTextAlign": "center"
   },
   "navigationLinks": [
     {

@@ -11,9 +11,10 @@ export async function generateMetadata() {
 
 export default async function PhotographyPage() {
   const content = await getContentStore();
+  const alignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (
-    <section className="content-page">
+    <section className={`content-page ${alignClass}`}>
       <header className="section-header">
         <h1>{content.pageHeaders.photography.title}</h1>
         <p>{content.pageHeaders.photography.description}</p>

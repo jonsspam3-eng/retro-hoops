@@ -1,6 +1,11 @@
 import { AdminEditor } from "@/components/admin/admin-editor";
+import { AdminLogin } from "@/components/admin/admin-login";
+import { cookies } from "next/headers";
 import {
+  getAdminCookieName,
   getContentStore,
+  isAdminPasswordRequired,
+  isAdminSessionValid,
   isLocalAdminEnabled,
 } from "@/lib/content-store";
 
@@ -20,6 +25,23 @@ export default async function AdminPage() {
     );
   }
 
+  const passwordRequired = isAdminPasswordRequired();
+  const cookieStore = await cookies();
+  const isAuthenticated = isAdminSessionValid(
+    cookieStore.get(getAdminCookieName())?.value,
+  );
+  if (passwordRequired && !isAuthenticated) {
+    return (
+      <section className="content-page admin-page">
+        <header className="section-header">
+          <h1>admin</h1>
+          <p>Password-protected local editor.</p>
+        </header>
+        <AdminLogin />
+      </section>
+    );
+  }
+
   const content = await getContentStore();
 
   return (
@@ -29,7 +51,7 @@ export default async function AdminPage() {
         <p>Local editor for content and media paths.</p>
       </header>
 
-      <AdminEditor initialContent={content} />
+      <AdminEditor initialContent={content} passwordProtected={passwordRequired} />
     </section>
   );
 }

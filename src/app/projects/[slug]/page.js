@@ -27,13 +27,14 @@ export async function generateMetadata({ params }) {
 export default async function ProjectDetailPage({ params }) {
   const content = await getContentStore();
   const project = content.projects.find((entry) => entry.slug === params.slug);
+  const pageAlignClass = content.site.textAlign === "right" ? "is-right" : "is-left";
 
   if (!project) {
     notFound();
   }
 
   return (
-    <article className="project-detail">
+    <article className={`project-detail ${pageAlignClass}`}>
       <Link href="/projects" className="back-link">
         {content.projectDetail.backLabel}
       </Link>
