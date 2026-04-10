@@ -1,0 +1,37 @@
+{
+  "name": "portfolio-archive",
+  "version": "1.0.0",
+  "description": "1. Create a new GitHub repository. 2. Upload **all files in this folder** (make sure `index.html` is in the repo root). 3. Repo → Settings → Pages:    - Source: Deploy from a branch    - Branch: `main`    - Folder: `/ (root)` 4. Open the published URL shown on the Pages screen.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonsspam3-eng/retro-hoops.git"
+  },
+  "keywords": [
+    "portfolio",
+    "nextjs",
+    "tailwind"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jonsspam3-eng/retro-hoops/issues"
+  },
+  "homepage": "https://github.com/jonsspam3-eng/retro-hoops#readme",
+  "dependencies": {
+    "next": "^16.2.3",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.3",
+    "tailwindcss": "^4.2.2"
+  }
+}

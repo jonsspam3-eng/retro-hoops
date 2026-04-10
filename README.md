@@ -1,23 +1,38 @@
-# Retro Hoops (GitHub Pages demo)
+# archive_13 — personal portfolio
 
-## Quick start (GitHub Pages)
-1. Create a new GitHub repository.
-2. Upload **all files in this folder** (make sure `index.html` is in the repo root).
-3. Repo → Settings → Pages:
-   - Source: Deploy from a branch
-   - Branch: `main`
-   - Folder: `/ (root)`
-4. Open the published URL shown on the Pages screen.
+A minimal, editorial portfolio built with **Next.js** and **Tailwind CSS**, inspired by old-school web restraint and directory-style navigation.
 
-## Local test
-Run a local server (don't use file://):
+## Run locally
+
 ```bash
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
-Open:
-- http://localhost:8000
 
-## Basketball UI patches
-`index.html` is updated to load:
-- `hoops_patch.js` (text reskin)
-- `hoops_hud_patch_v2.js` (replaces down/distance with shot clock text near the game clock)
+Open [http://localhost:3000](http://localhost:3000).
+
+## Build for production
+
+```bash
+npm run build
+npm run start
+```
+
+## Content editing
+
+- Navigation + footer links: `src/data/navigation.js`
+- Photography entries: `src/data/photography.js`
+- Project entries: `src/data/projects.js`
+- Moodboard entries: `src/data/moodboard.js`
+- Homepage wordmark text: `src/app/page.js`
+- Contact links + email: `src/app/contact/page.js`
+
+## Replace placeholder images
+
+All placeholders live in:
+
+- `public/images/photography/`
+- `public/images/projects/`
+- `public/images/moodboard/`
+
+Swap the image files and/or update paths in data files to use your own photography and project assets.

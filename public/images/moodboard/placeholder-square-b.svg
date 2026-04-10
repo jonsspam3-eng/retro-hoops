@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000" fill="none">
+  <rect width="1000" height="1000" fill="#171717"/>
+  <rect x="70" y="70" width="860" height="860" stroke="#363636"/>
+  <line x1="70" y1="500" x2="930" y2="500" stroke="#2B2B2B"/>
+  <text x="98" y="900" fill="#858585" font-family="Courier New, monospace" font-size="24">replace_mood_reference_b.jpg</text>
+</svg>

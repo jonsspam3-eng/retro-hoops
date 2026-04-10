@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500" fill="none">
+  <rect width="1200" height="1500" fill="#111111"/>
+  <rect x="80" y="80" width="1040" height="1340" stroke="#393939"/>
+  <line x1="80" y1="420" x2="1120" y2="420" stroke="#2A2A2A"/>
+  <line x1="80" y1="980" x2="1120" y2="980" stroke="#2A2A2A"/>
+  <text x="100" y="1400" fill="#7E7E7E" font-family="Courier New, monospace" font-size="30">replace_with_photo_02.jpg</text>
+</svg>
