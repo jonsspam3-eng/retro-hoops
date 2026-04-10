@@ -1,19 +1,21 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/logo-mark";
 import { NycClock } from "@/components/nyc-clock";
-import { primaryLinks } from "@/data/navigation";
+import { siteContent } from "@/data/site-content";
 
 export default function HomePage() {
   return (
     <section className="home-page">
       <div className="home-wordmark-wrap">
-        {/* Replace this text logo with your own name or wordmark. */}
-        <h1 className="home-wordmark">archive_13</h1>
-        <NycClock />
+        <h1 className="home-wordmark">
+          <LogoMark className="home-logo" altSuffix="logo" />
+        </h1>
+        <NycClock locationLabel={siteContent.locationLabel} />
       </div>
 
       <nav className="home-directory" aria-label="Main sections">
         <ul>
-          {primaryLinks.map((item) => (
+          {siteContent.homepageLinks.map((item) => (
             <li key={item.href}>
               <Link href={item.href}>{item.label}</Link>
             </li>

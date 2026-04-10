@@ -1,3 +1,9 @@
+/**
+ * HOW TO EDIT THIS FILE
+ * - Update `photographyCategories` to change left-side filters.
+ * - Update `photographyEntries` to add/remove photography items.
+ * - Replace `image` paths with your files inside `/public/images/photography`.
+ */
 export const photographyCategories = [
   "all",
   "editorial",

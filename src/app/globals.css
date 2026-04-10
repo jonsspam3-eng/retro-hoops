@@ -2,12 +2,12 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0a0a0a;
+  --bg: var(--brand-bg, #0a0a0a);
   --surface: #101010;
-  --text: #f2f2f2;
+  --text: var(--brand-text, #f2f2f2);
   --text-soft: #b4b4b4;
   --line: #232323;
-  --accent: #a13a3a;
+  --accent: var(--brand-primary, #a13a3a);
 }
 
 html[data-theme="light"] {
@@ -69,10 +69,25 @@ a:hover {
 }
 
 .nav-wordmark {
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-logo {
+  height: 18px;
+  width: auto;
+  display: block;
+}
+
+.logo-text {
   font-family: "Times New Roman", Times, Georgia, serif;
-  font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.nav-logo.logo-text {
+  font-size: 0.95rem;
+  height: auto;
 }
 
 .nav-links-wrap {
@@ -133,11 +148,18 @@ a:hover {
 
 .home-wordmark {
   margin: 0;
-  font-family: "Times New Roman", Times, Georgia, serif;
+}
+
+.home-logo {
+  width: min(88vw, 420px);
+  height: auto;
+  display: block;
+  margin-inline: auto;
+}
+
+.home-logo.logo-text {
   font-size: clamp(2.3rem, 7vw, 4.8rem);
   line-height: 0.95;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   font-weight: 400;
 }
 

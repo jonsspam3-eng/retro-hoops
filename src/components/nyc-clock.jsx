@@ -22,7 +22,7 @@ function getNycTimeLabel() {
   return `${date} / ${time}`;
 }
 
-export function NycClock() {
+export function NycClock({ locationLabel = "NYC" }) {
   const [label, setLabel] = useState(getNycTimeLabel);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export function NycClock() {
 
   return (
     <p className="nyc-clock" aria-live="polite">
-      {label} / NYC
+      {label} / {locationLabel}
     </p>
   );
 }

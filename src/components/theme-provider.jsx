@@ -1,15 +1,18 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { brandConfig } from "@/data/brand-config";
+
+const DEFAULT_THEME = brandConfig.defaultTheme === "light" ? "light" : "dark";
 
 const ThemeContext = createContext({
-  theme: "dark",
+  theme: DEFAULT_THEME,
   toggleTheme: () => {},
 });
 
 function getInitialTheme() {
   if (typeof window === "undefined") {
-    return "dark";
+    return DEFAULT_THEME;
   }
 
   const stored = window.localStorage.getItem("theme");
@@ -17,9 +20,7 @@ function getInitialTheme() {
     return stored;
   }
 
-  return window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
+  return DEFAULT_THEME;
 }
 
 export function ThemeProvider({ children }) {

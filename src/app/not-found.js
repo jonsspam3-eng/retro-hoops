@@ -1,13 +1,14 @@
 import Link from "next/link";
+import { siteContent } from "@/data/site-content";
 
 export default function NotFound() {
   return (
     <section className="content-page prose-page">
       <header className="section-header">
-        <h1>not found</h1>
+        <h1>{siteContent.notFound.title}</h1>
       </header>
-      <p>The page you requested is not available in this archive.</p>
-      <Link href="/">return to index</Link>
+      <p>{siteContent.notFound.message}</p>
+      <Link href="/">{siteContent.notFound.backLabel}</Link>
     </section>
   );
 }

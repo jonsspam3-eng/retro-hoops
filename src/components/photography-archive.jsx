@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 
 export function PhotographyArchive({ entries, categories }) {
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [activeCategory, setActiveCategory] = useState(categories[0] ?? "all");
   const [activeItem, setActiveItem] = useState(null);
 
   const filteredEntries = useMemo(() => {

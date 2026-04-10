@@ -1,18 +1,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArchiveBottomLinks } from "@/components/archive-bottom-links";
+import { brandConfig } from "@/data/brand-config";
 import { projects } from "@/data/projects";
+import { siteContent } from "@/data/site-content";
 
 export const metadata = {
-  title: "Projects — archive_13",
+  title: `Projects — ${brandConfig.siteName}`,
 };
 
 export default function ProjectsPage() {
   return (
     <section className="content-page">
       <header className="section-header">
-        <h1>projects</h1>
-        <p>campaigns, editorial systems, and personal studies</p>
+        <h1>{siteContent.pageHeaders.projects.title}</h1>
+        <p>{siteContent.pageHeaders.projects.description}</p>
       </header>
 
       <ul className="project-grid">

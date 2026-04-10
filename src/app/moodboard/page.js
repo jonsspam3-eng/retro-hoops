@@ -1,16 +1,18 @@
 import Image from "next/image";
+import { brandConfig } from "@/data/brand-config";
 import { moodboardEntries } from "@/data/moodboard";
+import { siteContent } from "@/data/site-content";
 
 export const metadata = {
-  title: "Moodboard — archive_13",
+  title: `Moodboard — ${brandConfig.siteName}`,
 };
 
 export default function MoodboardPage() {
   return (
     <section className="content-page">
       <header className="section-header">
-        <h1>moodboard</h1>
-        <p>editorials, textures, references, and found fragments</p>
+        <h1>{siteContent.pageHeaders.moodboard.title}</h1>
+        <p>{siteContent.pageHeaders.moodboard.description}</p>
       </header>
 
       <ul className="moodboard-grid">

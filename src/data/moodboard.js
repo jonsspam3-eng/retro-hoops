@@ -1,3 +1,9 @@
+/**
+ * HOW TO EDIT THIS FILE
+ * - Add or remove entries in `moodboardEntries` to curate your moodboard archive.
+ * - Keep captions short for a minimal editorial look.
+ * - Replace `image` paths with your files inside `/public/images/moodboard`.
+ */
 export const moodboardEntries = [
   {
     id: "mb-001",

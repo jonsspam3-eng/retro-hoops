@@ -1,3 +1,9 @@
+/**
+ * HOW TO EDIT THIS FILE
+ * - Add or remove items in `projects` to change the Projects page and detail pages.
+ * - `slug` controls the URL (example: `/projects/my-project`).
+ * - Replace `image` paths with your files inside `/public/images/projects`.
+ */
 export const projects = [
   {
     slug: "uniform-study",

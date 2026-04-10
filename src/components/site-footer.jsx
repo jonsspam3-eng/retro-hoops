@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { footerLinks } from "@/data/navigation";
+import { siteContent } from "@/data/site-content";
 
 export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="footer-inner">
-        <small>nyc / independent practice</small>
+        <small>{siteContent.footerNote}</small>
         <ul className="footer-links" aria-label="Social links">
-          {footerLinks.map((item) => (
+          {siteContent.socialLinks.map((item) => (
             <li key={item.href}>
-              {/* Replace href values with your real social profile URLs. */}
               <Link href={item.href} target="_blank" rel="noreferrer">
                 {item.label}
               </Link>

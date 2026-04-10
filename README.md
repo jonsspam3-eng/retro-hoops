@@ -18,14 +18,47 @@ npm run build
 npm run start
 ```
 
-## Content editing
+## How to Edit This Site
 
-- Navigation + footer links: `src/data/navigation.js`
-- Photography entries: `src/data/photography.js`
-- Project entries: `src/data/projects.js`
-- Moodboard entries: `src/data/moodboard.js`
-- Homepage wordmark text: `src/app/page.js`
-- Contact links + email: `src/app/contact/page.js`
+Most edits happen in data files (no layout code needed).
+
+1. **Branding (site name, logo, colors, default theme)**
+   - Edit: `src/data/brand-config.js`
+   - Change:
+     - `siteName`
+     - `logoPath`
+     - `primaryColor`
+     - `backgroundColor`
+     - `textColor`
+     - `defaultTheme` (`"dark"` or `"light"`)
+
+2. **Main text + links (navigation, homepage links, about, contact, socials)**
+   - Edit: `src/data/site-content.js`
+   - Change:
+     - navigation labels/URLs
+     - homepage directory links
+     - about page text
+     - contact email/info
+     - social links
+
+3. **Portfolio content**
+   - Photography items: `src/data/photography.js`
+   - Project items: `src/data/projects.js`
+   - Moodboard items: `src/data/moodboard.js`
+
+4. **Replace images**
+   - Put your image files in:
+     - `public/images/logo/`
+     - `public/images/photography/`
+     - `public/images/projects/`
+     - `public/images/moodboard/`
+   - Update file paths in the data files above.
+
+5. **Preview changes**
+   ```bash
+   npm run dev
+   ```
+   Then open [http://localhost:3000](http://localhost:3000).
 
 ## Replace placeholder images
 
