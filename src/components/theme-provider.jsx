@@ -23,12 +23,7 @@ function getInitialTheme() {
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("dark");
-
-  useEffect(() => {
-    const initialTheme = getInitialTheme();
-    setTheme(initialTheme);
-  }, []);
+  const [theme, setTheme] = useState(() => getInitialTheme());
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
