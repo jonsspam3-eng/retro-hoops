@@ -962,7 +962,7 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
             />
             <h3>photography categories</h3>
             <p className="admin-hint">
-              Drag category rows to reorder. Keep "all" as the first item.
+              Drag category rows to reorder. Keep &quot;all&quot; as the first item.
             </p>
             <div className="admin-list">
               {ensureArray(content.photographyCategories).map((category, index) => (
