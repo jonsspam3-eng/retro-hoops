@@ -57,12 +57,14 @@ It covers:
 - logo path
 - text alignment controls (site-wide + home page)
 - homepage/navigation links
+- archive bottom utility links
 - about text
 - contact info
 - social links
 - photography items
 - projects
 - moodboard items
+- page labels + utility copy (headers, not-found, project back label)
 
 ### Local save flow
 
@@ -73,9 +75,17 @@ It covers:
 ### New editor features
 
 - **Reset section** buttons in each panel
-- **Drag-and-drop photo sorting** in the photography section
-  - drag a photo row and drop it where you want
-  - order is saved in `photographyItems`
+- **Drag-and-drop sorting across all list sections**
+  - homepage links
+  - top navigation links
+  - archive bottom links
+  - social links
+  - about paragraphs
+  - about sections
+  - photography categories
+  - photography items
+  - projects
+  - moodboard items
 - **Live editor preview** in a right-side panel
 - **Right/center/left text alignment** controls in site settings
 

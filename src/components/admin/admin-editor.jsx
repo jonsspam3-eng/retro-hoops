@@ -31,11 +31,25 @@ function ensureArray(value, fallback = []) {
   return Array.isArray(value) ? value : fallback;
 }
 
+function getByPath(target, path) {
+  return String(path)
+    .split(".")
+    .reduce((current, segment) => (current ? current[segment] : undefined), target);
+}
+
 function updateRow(setter, path, index, field, value) {
   setter((prev) => {
     const next = clone(prev);
-    const list = next[path];
+    const list = getByPath(next, path);
     list[index][field] = value;
+    return next;
+  });
+}
+
+function updateValueRow(setter, path, index, value) {
+  setter((prev) => {
+    const next = clone(prev);
+    getByPath(next, path)[index] = value;
     return next;
   });
 }
@@ -43,7 +57,7 @@ function updateRow(setter, path, index, field, value) {
 function removeRow(setter, path, index) {
   setter((prev) => {
     const next = clone(prev);
-    next[path].splice(index, 1);
+    getByPath(next, path).splice(index, 1);
     return next;
   });
 }
@@ -51,7 +65,15 @@ function removeRow(setter, path, index) {
 function addRow(setter, path, template) {
   setter((prev) => {
     const next = clone(prev);
-    next[path].push(clone(template));
+    getByPath(next, path).push(clone(template));
+    return next;
+  });
+}
+
+function addValueRow(setter, path, value = "") {
+  setter((prev) => {
+    const next = clone(prev);
+    getByPath(next, path).push(value);
     return next;
   });
 }
@@ -63,11 +85,15 @@ function moveRow(setter, path, fromIndex, toIndex) {
 
   setter((prev) => {
     const next = clone(prev);
-    const list = next[path];
+    const list = getByPath(next, path);
     const [moved] = list.splice(fromIndex, 1);
     list.splice(toIndex, 0, moved);
     return next;
   });
+}
+
+function draggableClass(dragState, path, index) {
+  return dragState?.path === path && dragState?.index === index ? "is-dragging" : "";
 }
 
 function TextInput({ label, value, onChange, placeholder = "" }) {
@@ -123,7 +149,7 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
   const [content, setContent] = useState(() => clone(initialContent));
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
-  const [dragPhotoIndex, setDragPhotoIndex] = useState(null);
+  const [dragState, setDragState] = useState(null);
 
   const preview = useMemo(
     () => ({
@@ -132,12 +158,15 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
       logoPath: content.site?.logoPath ?? "",
       homeLinks: ensureArray(content.homepageLinks).slice(0, 8),
       navLinks: ensureArray(content.navigationLinks).slice(0, 8),
+      archiveLinks: ensureArray(content.archiveBottomLinks).slice(0, 8),
       aboutParagraphs: ensureArray(content.about?.paragraphs).slice(0, 2),
       contactEmail: content.contact?.email ?? "",
       socialLinks: ensureArray(content.socialLinks).slice(0, 4),
       photos: ensureArray(content.photographyItems).slice(0, 8),
       projects: ensureArray(content.projects).slice(0, 4),
       moods: ensureArray(content.moodboardItems).slice(0, 6),
+      notFound: content.notFound,
+      projectDetail: content.projectDetail,
       textAlign: content.site?.textAlign ?? "left",
       homeTextAlign: content.site?.homeTextAlign ?? "center",
     }),
@@ -152,6 +181,20 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
       });
       return next;
     });
+  }
+
+  function startDrag(path, index) {
+    setDragState({ path, index });
+  }
+
+  function handleDrop(path, index) {
+    if (!dragState || dragState.path !== path) {
+      setDragState(null);
+      return;
+    }
+
+    moveRow(setContent, path, dragState.index, index);
+    setDragState(null);
   }
 
   async function saveContent() {
@@ -350,52 +393,137 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
               title="about / contact"
               onReset={() => resetSection("about", "contact")}
             />
-            <TextArea
-              label="about paragraph 1"
-              rows={4}
-              value={content.about.paragraphs?.[0] ?? ""}
-              onChange={(event) =>
+            <h3>about paragraphs</h3>
+            <p className="admin-hint">Drag to reorder paragraph flow.</p>
+            <div className="admin-list">
+              {ensureArray(content.about.paragraphs).map((paragraph, index) => (
+                <div
+                  className={`admin-row draggable-row ${draggableClass(
+                    dragState,
+                    "about.paragraphs",
+                    index,
+                  )}`}
+                  key={`about-paragraph-${index}`}
+                  draggable
+                  onDragStart={() => startDrag("about.paragraphs", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("about.paragraphs", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
+                  <TextArea
+                    label={`paragraph ${index + 1}`}
+                    rows={4}
+                    value={paragraph}
+                    onChange={(event) =>
+                      setContent((prev) => {
+                        const next = clone(prev);
+                        next.about.paragraphs[index] = event.target.value;
+                        return next;
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="admin-delete"
+                    onClick={() =>
+                      setContent((prev) => {
+                        const next = clone(prev);
+                        next.about.paragraphs.splice(index, 1);
+                        return next;
+                      })
+                    }
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="admin-add"
+              onClick={() =>
                 setContent((prev) => {
                   const next = clone(prev);
-                  next.about.paragraphs[0] = event.target.value;
+                  next.about.paragraphs.push("");
                   return next;
                 })
               }
-            />
-            <TextArea
-              label="about paragraph 2"
-              rows={4}
-              value={content.about.paragraphs?.[1] ?? ""}
-              onChange={(event) =>
+            >
+              add paragraph
+            </button>
+
+            <h3>about sections</h3>
+            <p className="admin-hint">Drag section cards to reorder.</p>
+            <div className="admin-list">
+              {ensureArray(content.about.sections).map((section, index) => (
+                <div
+                  className={`admin-row media-row draggable-row ${draggableClass(
+                    dragState,
+                    "about.sections",
+                    index,
+                  )}`}
+                  key={`about-section-${index}-${section.title}`}
+                  draggable
+                  onDragStart={() => startDrag("about.sections", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("about.sections", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
+                  <TextInput
+                    label="section title"
+                    value={section.title}
+                    onChange={(event) =>
+                      setContent((prev) => {
+                        const next = clone(prev);
+                        next.about.sections[index].title = event.target.value;
+                        return next;
+                      })
+                    }
+                  />
+                  <TextArea
+                    label="section text"
+                    rows={3}
+                    value={section.text}
+                    onChange={(event) =>
+                      setContent((prev) => {
+                        const next = clone(prev);
+                        next.about.sections[index].text = event.target.value;
+                        return next;
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="admin-delete"
+                    onClick={() =>
+                      setContent((prev) => {
+                        const next = clone(prev);
+                        next.about.sections.splice(index, 1);
+                        return next;
+                      })
+                    }
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="admin-add"
+              onClick={() =>
                 setContent((prev) => {
                   const next = clone(prev);
-                  next.about.paragraphs[1] = event.target.value;
+                  next.about.sections.push({ title: "", text: "" });
                   return next;
                 })
               }
-            />
-            <TextArea
-              label="about section 1"
-              value={content.about.sections?.[0]?.text ?? ""}
-              onChange={(event) =>
-                setContent((prev) => {
-                  const next = clone(prev);
-                  next.about.sections[0].text = event.target.value;
-                  return next;
-                })
-              }
-            />
-            <TextArea
-              label="about section 2"
-              value={content.about.sections?.[1]?.text ?? ""}
-              onChange={(event) =>
-                setContent((prev) => {
-                  const next = clone(prev);
-                  next.about.sections[1].text = event.target.value;
-                  return next;
-                })
-              }
-            />
+            >
+              add about section
+            </button>
+
             <TextArea
               label="contact intro"
               value={content.contact.intro}
@@ -428,15 +556,201 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
             />
           </section>
 
+          <section className="admin-panel">
+            <PanelHeader
+              title="page labels / utility copy"
+              onReset={() => resetSection("pageHeaders", "projectDetail", "notFound")}
+            />
+            <TextInput
+              label="photography page title"
+              value={content.pageHeaders.photography.title}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    photography: {
+                      ...prev.pageHeaders.photography,
+                      title: event.target.value,
+                    },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="photography page description"
+              value={content.pageHeaders.photography.description}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    photography: {
+                      ...prev.pageHeaders.photography,
+                      description: event.target.value,
+                    },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="projects page title"
+              value={content.pageHeaders.projects.title}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    projects: {
+                      ...prev.pageHeaders.projects,
+                      title: event.target.value,
+                    },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="projects page description"
+              value={content.pageHeaders.projects.description}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    projects: {
+                      ...prev.pageHeaders.projects,
+                      description: event.target.value,
+                    },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="moodboard page title"
+              value={content.pageHeaders.moodboard.title}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    moodboard: {
+                      ...prev.pageHeaders.moodboard,
+                      title: event.target.value,
+                    },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="moodboard page description"
+              value={content.pageHeaders.moodboard.description}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    moodboard: {
+                      ...prev.pageHeaders.moodboard,
+                      description: event.target.value,
+                    },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="about page title"
+              value={content.pageHeaders.about.title}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    about: { ...prev.pageHeaders.about, title: event.target.value },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="contact page title"
+              value={content.pageHeaders.contact.title}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  pageHeaders: {
+                    ...prev.pageHeaders,
+                    contact: { ...prev.pageHeaders.contact, title: event.target.value },
+                  },
+                }))
+              }
+            />
+            <TextInput
+              label="project detail back label"
+              value={content.projectDetail.backLabel}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  projectDetail: { ...prev.projectDetail, backLabel: event.target.value },
+                }))
+              }
+            />
+            <TextInput
+              label="not found title"
+              value={content.notFound.title}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  notFound: { ...prev.notFound, title: event.target.value },
+                }))
+              }
+            />
+            <TextArea
+              label="not found message"
+              rows={3}
+              value={content.notFound.message}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  notFound: { ...prev.notFound, message: event.target.value },
+                }))
+              }
+            />
+            <TextInput
+              label="not found back label"
+              value={content.notFound.backLabel}
+              onChange={(event) =>
+                setContent((prev) => ({
+                  ...prev,
+                  notFound: { ...prev.notFound, backLabel: event.target.value },
+                }))
+              }
+            />
+          </section>
+
           <section className="admin-panel admin-panel-wide">
             <PanelHeader
               title="navigation links"
-              onReset={() => resetSection("homepageLinks", "navigationLinks")}
+              onReset={() =>
+                resetSection("homepageLinks", "navigationLinks", "archiveBottomLinks")
+              }
             />
             <h3>homepage links</h3>
+            <p className="admin-hint">Drag to reorder homepage directory links.</p>
             <div className="admin-list">
               {ensureArray(content.homepageLinks).map((item, index) => (
-                <div className="admin-row" key={`home-${index}-${item.href}`}>
+                <div
+                  className={`admin-row draggable-row ${draggableClass(
+                    dragState,
+                    "homepageLinks",
+                    index,
+                  )}`}
+                  key={`home-${index}-${item.href}`}
+                  draggable
+                  onDragStart={() => startDrag("homepageLinks", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("homepageLinks", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
                   <TextInput
                     label="label"
                     value={item.label}
@@ -470,9 +784,23 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
             </button>
 
             <h3>top navigation links</h3>
+            <p className="admin-hint">Drag to reorder header navigation links.</p>
             <div className="admin-list">
               {ensureArray(content.navigationLinks).map((item, index) => (
-                <div className="admin-row" key={`nav-${index}-${item.href}`}>
+                <div
+                  className={`admin-row draggable-row ${draggableClass(
+                    dragState,
+                    "navigationLinks",
+                    index,
+                  )}`}
+                  key={`nav-${index}-${item.href}`}
+                  draggable
+                  onDragStart={() => startDrag("navigationLinks", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("navigationLinks", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
                   <TextInput
                     label="label"
                     value={item.label}
@@ -504,13 +832,89 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
             >
               add nav link
             </button>
+
+            <h3>archive bottom links</h3>
+            <p className="admin-hint">Drag to reorder utility links on archive pages.</p>
+            <div className="admin-list">
+              {ensureArray(content.archiveBottomLinks).map((item, index) => (
+                <div
+                  className={`admin-row draggable-row ${draggableClass(
+                    dragState,
+                    "archiveBottomLinks",
+                    index,
+                  )}`}
+                  key={`archive-bottom-${index}-${item.href}`}
+                  draggable
+                  onDragStart={() => startDrag("archiveBottomLinks", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("archiveBottomLinks", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
+                  <TextInput
+                    label="label"
+                    value={item.label}
+                    onChange={(event) =>
+                      updateRow(
+                        setContent,
+                        "archiveBottomLinks",
+                        index,
+                        "label",
+                        event.target.value,
+                      )
+                    }
+                  />
+                  <TextInput
+                    label="href"
+                    value={item.href}
+                    onChange={(event) =>
+                      updateRow(
+                        setContent,
+                        "archiveBottomLinks",
+                        index,
+                        "href",
+                        event.target.value,
+                      )
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="admin-delete"
+                    onClick={() => removeRow(setContent, "archiveBottomLinks", index)}
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="admin-add"
+              onClick={() => addRow(setContent, "archiveBottomLinks", emptyLink)}
+            >
+              add archive link
+            </button>
           </section>
 
           <section className="admin-panel admin-panel-wide">
             <PanelHeader title="social links" onReset={() => resetSection("socialLinks")} />
+            <p className="admin-hint">Drag to reorder social links.</p>
             <div className="admin-list">
               {ensureArray(content.socialLinks).map((item, index) => (
-                <div className="admin-row social-row" key={`social-${index}-${item.label}`}>
+                <div
+                  className={`admin-row social-row draggable-row ${draggableClass(
+                    dragState,
+                    "socialLinks",
+                    index,
+                  )}`}
+                  key={`social-${index}-${item.label}`}
+                  draggable
+                  onDragStart={() => startDrag("socialLinks", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("socialLinks", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
                   <TextInput
                     label="label"
                     value={item.label}
@@ -556,20 +960,55 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
               title="photography items"
               onReset={() => resetSection("photographyCategories", "photographyItems")}
             />
-            <TextInput
-              label="categories (comma separated)"
-              value={ensureArray(content.photographyCategories).join(", ")}
-              onChange={(event) =>
-                setContent((prev) => ({
-                  ...prev,
-                  photographyCategories: event.target.value
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                }))
-              }
-              placeholder="all, editorial, street"
-            />
+            <h3>photography categories</h3>
+            <p className="admin-hint">
+              Drag category rows to reorder. Keep "all" as the first item.
+            </p>
+            <div className="admin-list">
+              {ensureArray(content.photographyCategories).map((category, index) => (
+                <div
+                  className={`admin-row draggable-row ${draggableClass(
+                    dragState,
+                    "photographyCategories",
+                    index,
+                  )}`}
+                  key={`photo-category-${index}-${category}`}
+                  draggable
+                  onDragStart={() => startDrag("photographyCategories", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("photographyCategories", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
+                  <TextInput
+                    label="category"
+                    value={category}
+                    onChange={(event) =>
+                      updateValueRow(
+                        setContent,
+                        "photographyCategories",
+                        index,
+                        event.target.value,
+                      )
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="admin-delete"
+                    onClick={() => removeRow(setContent, "photographyCategories", index)}
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="admin-add"
+              onClick={() => addValueRow(setContent, "photographyCategories", "")}
+            >
+              add category
+            </button>
             <p className="admin-hint">
               Drag and drop rows below to reorder photos in the portfolio grid.
             </p>
@@ -577,17 +1016,14 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
               {ensureArray(content.photographyItems).map((item, index) => (
                 <div
                   className={`admin-row media-row draggable-row ${
-                    dragPhotoIndex === index ? "is-dragging" : ""
+                    draggableClass(dragState, "photographyItems", index)
                   }`}
                   key={`photo-${index}-${item.id}`}
                   draggable
-                  onDragStart={() => setDragPhotoIndex(index)}
+                  onDragStart={() => startDrag("photographyItems", index)}
                   onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => {
-                    moveRow(setContent, "photographyItems", dragPhotoIndex, index);
-                    setDragPhotoIndex(null);
-                  }}
-                  onDragEnd={() => setDragPhotoIndex(null)}
+                  onDrop={() => handleDrop("photographyItems", index)}
+                  onDragEnd={() => setDragState(null)}
                 >
                   <p className="drag-label">drag</p>
                   <TextInput
@@ -665,19 +1101,23 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
 
           <section className="admin-panel admin-panel-wide">
             <PanelHeader title="projects" onReset={() => resetSection("projects")} />
-            <TextInput
-              label="projects alignment (left / center / right)"
-              value={content.site.projectsTextAlign ?? "left"}
-              onChange={(event) =>
-                setContent((prev) => ({
-                  ...prev,
-                  site: { ...prev.site, projectsTextAlign: event.target.value },
-                }))
-              }
-            />
+            <p className="admin-hint">Drag project rows to reorder project grid + detail routes.</p>
             <div className="admin-list">
               {ensureArray(content.projects).map((item, index) => (
-                <div className="admin-row media-row" key={`project-${index}-${item.slug}`}>
+                <div
+                  className={`admin-row media-row draggable-row ${draggableClass(
+                    dragState,
+                    "projects",
+                    index,
+                  )}`}
+                  key={`project-${index}-${item.slug}`}
+                  draggable
+                  onDragStart={() => startDrag("projects", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("projects", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
                   <TextInput
                     label="slug"
                     value={item.slug}
@@ -750,9 +1190,23 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
 
           <section className="admin-panel admin-panel-wide">
             <PanelHeader title="moodboard items" onReset={() => resetSection("moodboardItems")} />
+            <p className="admin-hint">Drag moodboard items to set archive order.</p>
             <div className="admin-list">
               {ensureArray(content.moodboardItems).map((item, index) => (
-                <div className="admin-row media-row" key={`mood-${index}-${item.id}`}>
+                <div
+                  className={`admin-row media-row draggable-row ${draggableClass(
+                    dragState,
+                    "moodboardItems",
+                    index,
+                  )}`}
+                  key={`mood-${index}-${item.id}`}
+                  draggable
+                  onDragStart={() => startDrag("moodboardItems", index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => handleDrop("moodboardItems", index)}
+                  onDragEnd={() => setDragState(null)}
+                >
+                  <p className="drag-label">drag</p>
                   <TextInput
                     label="id"
                     value={item.id}
@@ -851,6 +1305,14 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
                 </li>
               ))}
             </ul>
+            <p>archive links:</p>
+            <ul>
+              {preview.archiveLinks.map((link) => (
+                <li key={`${link.label}-${link.href}`}>
+                  {link.label}
+                </li>
+              ))}
+            </ul>
           </article>
 
           <article className="preview-card">
@@ -887,6 +1349,14 @@ export function AdminEditor({ initialContent, passwordProtected = false }) {
                 </li>
               ))}
             </ul>
+          </article>
+
+          <article className={`preview-card align-${preview.textAlign}`}>
+            <h3>utility copy</h3>
+            <p>project back label: {preview.projectDetail?.backLabel}</p>
+            <p>not found title: {preview.notFound?.title}</p>
+            <p>{preview.notFound?.message}</p>
+            <p>not found back label: {preview.notFound?.backLabel}</p>
           </article>
         </aside>
       </div>

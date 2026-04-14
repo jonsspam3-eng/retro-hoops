@@ -610,6 +610,11 @@ html[data-theme="light"] .lightbox {
   width: min(1240px, 100%);
 }
 
+.admin-editor {
+  display: grid;
+  gap: 0.9rem;
+}
+
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -631,9 +636,15 @@ html[data-theme="light"] .lightbox {
   color: var(--text-soft);
 }
 
+.admin-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .admin-save,
 .admin-add,
-.admin-delete {
+.admin-delete,
+.admin-reset {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--text);
@@ -645,7 +656,8 @@ html[data-theme="light"] .lightbox {
 
 .admin-save:hover,
 .admin-add:hover,
-.admin-delete:hover {
+.admin-delete:hover,
+.admin-reset:hover {
   opacity: 0.65;
 }
 
@@ -662,10 +674,16 @@ html[data-theme="light"] .lightbox {
 }
 
 .admin-grid {
-  margin-top: 1rem;
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1rem;
+  align-items: start;
 }
 
 .admin-panel {
@@ -683,8 +701,23 @@ html[data-theme="light"] .lightbox {
   text-transform: lowercase;
 }
 
+.admin-panel h3 {
+  margin: 0.2rem 0 0;
+  font-size: 0.7rem;
+  color: var(--text-soft);
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+}
+
 .admin-panel-wide {
   grid-column: 1 / -1;
+}
+
+.admin-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .admin-list {
@@ -708,6 +741,22 @@ html[data-theme="light"] .lightbox {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.draggable-row {
+  cursor: grab;
+}
+
+.draggable-row.is-dragging {
+  opacity: 0.52;
+  border-color: var(--accent);
+}
+
+.drag-label {
+  margin: 0;
+  color: var(--text-soft);
+  text-transform: lowercase;
+  align-self: end;
+}
+
 .admin-field {
   display: grid;
   gap: 0.24rem;
@@ -718,7 +767,8 @@ html[data-theme="light"] .lightbox {
 }
 
 .admin-field input,
-.admin-field textarea {
+.admin-field textarea,
+.admin-field select {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--text);
@@ -731,28 +781,95 @@ html[data-theme="light"] .lightbox {
   resize: vertical;
 }
 
-.admin-preview {
-  margin-top: 1rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.8rem;
+.admin-hint {
+  margin: 0;
   color: var(--text-soft);
 }
 
-.admin-preview h2 {
-  margin: 0 0 0.4rem;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
+.admin-live-preview {
+  border: 1px solid var(--line);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+  position: sticky;
+  top: 1rem;
+}
+
+.admin-live-preview h2 {
+  margin: 0;
+  font-size: 0.78rem;
   text-transform: lowercase;
+  letter-spacing: 0.07em;
+}
+
+.preview-card {
+  border: 1px dashed var(--line);
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-soft);
+}
+
+.preview-card h3 {
+  margin: 0;
   color: var(--text);
+  text-transform: lowercase;
+  font-size: 0.72rem;
 }
 
-.admin-preview p {
-  margin: 0 0 0.2rem;
+.preview-card p {
+  margin: 0;
 }
 
-.admin-preview ul {
-  margin: 0.3rem 0 0;
-  padding-left: 1.1rem;
+.preview-card ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.preview-image-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.preview-image-grid figure {
+  margin: 0;
+}
+
+.preview-image-thumb {
+  border: 1px solid var(--line);
+  aspect-ratio: 4 / 5;
+  background: var(--surface);
+}
+
+.preview-image-grid figcaption {
+  margin-top: 0.2rem;
+  color: var(--text-soft);
+}
+
+.admin-auth {
+  border: 1px solid var(--line);
+  padding: 1rem;
+  max-width: 420px;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.admin-auth h2 {
+  margin: 0;
+  font-size: 0.84rem;
+  text-transform: lowercase;
+}
+
+.admin-auth p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.admin-auth-form {
+  display: grid;
+  gap: 0.55rem;
 }
 
 @media (max-width: 900px) {
@@ -781,10 +898,23 @@ html[data-theme="light"] .lightbox {
     grid-template-columns: 1fr;
   }
 
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
   .admin-row,
   .admin-row.social-row,
   .admin-row.media-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-live-preview {
+    position: static;
+  }
+
+  .admin-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 
