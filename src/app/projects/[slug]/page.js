@@ -11,8 +11,9 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }) {
+  const resolvedParams = await params;
   const content = await getPublicContent();
-  const project = await getProjectBySlug(params.slug);
+  const project = await getProjectBySlug(resolvedParams.slug);
   if (!project) {
     return {
       title: `Project not found — ${content.site.siteName}`,
@@ -25,9 +26,10 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function ProjectDetailPage({ params }) {
+  const resolvedParams = await params;
   const [content, projectRecord] = await Promise.all([
     getPublicContent(),
-    getProjectBySlug(params.slug),
+    getProjectBySlug(resolvedParams.slug),
   ]);
   const project = projectRecord
     ? {

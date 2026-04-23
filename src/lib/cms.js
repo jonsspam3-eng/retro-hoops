@@ -67,6 +67,17 @@ const DEFAULT_NOT_FOUND = {
   backLabel: "return to index",
 };
 
+export function getCollectionFromCategory(category) {
+  const normalized = String(category || "").toLowerCase();
+  if (normalized === "photography") {
+    return "PHOTOGRAPHY";
+  }
+  if (normalized === "moodboard") {
+    return "MOODBOARD";
+  }
+  return "LIBRARY";
+}
+
 const DEFAULT_PHOTOGRAPHY_CATEGORIES = [
   "all",
   "editorial",
