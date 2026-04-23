@@ -1,23 +1,56 @@
-# Retro Hoops (GitHub Pages demo)
+# Retro Hoops Prototype
 
-## Quick start (GitHub Pages)
-1. Create a new GitHub repository.
-2. Upload **all files in this folder** (make sure `index.html` is in the repo root).
-3. Repo → Settings → Pages:
-   - Source: Deploy from a branch
-   - Branch: `main`
-   - Folder: `/ (root)`
-4. Open the published URL shown on the Pages screen.
+Mobile-first college basketball prototype inspired by the loop and accessibility of Retro Bowl, with simplified arcade gameplay depth.
 
-## Local test
-Run a local server (don't use file://):
+## What this prototype includes
+
+- Main menu
+- Team select + custom team creation
+- Playable game vertical slice:
+  - movement / dribbling
+  - passing
+  - shooting with timing meter + green window
+  - layup / dunk / mid / three shot logic
+  - stamina and fatigue impact
+  - basic defense AI with steals and contests
+  - rebounds, turnovers, fast-break stat tracking
+- Postgame results screen
+- Dynasty hub starter framework:
+  - season record / poll / prestige / chemistry
+  - lightweight schedule and weekly progression
+  - recruit board and recruiting points spend loop
+  - tournament progression stub notifications
+
+## Run locally
+
+This project is static HTML/CSS/JS (no package manager/build step).
+
 ```bash
 python3 -m http.server 8000
 ```
-Open:
-- http://localhost:8000
 
-## Basketball UI patches
-`index.html` is updated to load:
-- `hoops_patch.js` (text reskin)
-- `hoops_hud_patch_v2.js` (replaces down/distance with shot clock text near the game clock)
+Then open:
+
+- `http://localhost:8000`
+
+Do not use `file://` because browser security can block asset/data loading patterns.
+
+## Controls
+
+- Left side drag: movement joystick
+- `PASS`: pass to best nearby teammate
+- Hold + release `SHOOT`: timing-based shot
+- Hold `SPRINT`: burst movement, drains stamina
+- Hold `DEF`: attempt defensive pressure/steal actions
+- `P&R`: pick-and-roll trigger placeholder (stubbed behavior)
+- `SW`: switch controlled defender while on defense
+
+## Architecture overview
+
+- `src/core`: app/game constants, shared state, math helpers
+- `src/data`: teams, rosters, recruit generation data
+- `src/game`: controls, ratings, simulation runtime, game session wiring
+- `src/franchise`: schedule + season progression utilities
+- `src/ui`: screen renderers and app controller
+
+See `ROADMAP.md` for next implementation phases.
