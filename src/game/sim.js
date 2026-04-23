@@ -154,6 +154,26 @@ function drawGroundBall(ctx, ball) {
   ctx.fill();
 }
 
+function drawShotMeterGuide(ctx, meterCharge) {
+  const width = 220;
+  const height = 12;
+  const x = CANVAS.width * 0.5 - width * 0.5;
+  const y = 8;
+  const greenStart = 0.47;
+  const greenEnd = 0.58;
+  const fillPct = clamp(meterCharge / 1.2, 0, 1);
+
+  ctx.fillStyle = "rgba(5,10,22,0.52)";
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = "rgba(75,243,132,0.42)";
+  ctx.fillRect(x + width * greenStart, y, width * (greenEnd - greenStart), height);
+  ctx.fillStyle = "rgba(255,112,132,0.85)";
+  ctx.fillRect(x, y, width * fillPct, height);
+  ctx.strokeStyle = "rgba(255,255,255,0.56)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, width, height);
+}
+
 function nearestPlayer(players, target) {
   let best = players[0];
   let bestDist = Number.POSITIVE_INFINITY;
@@ -506,7 +526,12 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
       setRun(shot.side, shot.points);
       queueSound(SOUND_EVENTS.SWISH);
       queueSound(SOUND_EVENTS.CROWD_CHEER);
-      switchPossession(`${shortName(shot.shooter.name)} buries ${shot.points}!`);
+      if (shot.green && shot.side === TEAM_SIDES.USER) {
+        setLog(`${shortName(shot.shooter.name)} GREEN! Pure ${shot.points}.`);
+      } else {
+        setLog(`${shortName(shot.shooter.name)} buries ${shot.points}!`);
+      }
+      switchPossession(state.log);
       return;
     }
 
@@ -720,8 +745,10 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
       beginShot(TEAM_SIDES.CPU, release);
       return;
     }
-    if (Math.random() < 0.15) {
+    if (Math.random() < 0.2) {
       handlePass(TEAM_SIDES.CPU);
+    } else if (Math.random() < 0.25) {
+      setLog(`${shortName(handler.name)} resets the offense.`);
     }
   }
 
@@ -855,6 +882,8 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     } else {
       drawGroundBall(ctx, state.ball);
     }
+
+    drawShotMeterGuide(ctx, state.meterCharge);
 
     ctx.fillStyle = "rgba(9,15,29,0.24)";
     ctx.fillRect(0, CANVAS.height - 162, CANVAS.width * 0.52, 162);
