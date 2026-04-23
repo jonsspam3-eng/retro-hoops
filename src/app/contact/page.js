@@ -1,21 +1,16 @@
 import Link from "next/link";
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export async function generateMetadata() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   return {
     title: `Contact — ${content.site.siteName}`,
   };
 }
 
 export default async function ContactPage() {
-  const content = await getContentStore();
-  const textAlignClass =
-    content.site.textAlign === "right"
-      ? "text-align-right"
-      : content.site.textAlign === "center"
-        ? "text-align-center"
-        : "text-align-left";
+  const content = await getPublicContent();
+  const textAlignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (
     <section className={`content-page prose-page ${textAlignClass}`}>

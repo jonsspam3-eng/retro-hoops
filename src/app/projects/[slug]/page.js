@@ -1,18 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getContentStore, readContentStore } from "@/lib/content-store";
+import { getProjectBySlug, getPublicContent, listProjects } from "@/lib/cms";
 
 export async function generateStaticParams() {
-  const content = await readContentStore();
-  return content.projects.map((project) => ({
+  const projects = await listProjects({ includeUnpublished: false });
+  return projects.map((project) => ({
     slug: project.slug,
   }));
 }
 
 export async function generateMetadata({ params }) {
-  const content = await readContentStore();
-  const project = content.projects.find((entry) => entry.slug === params.slug);
+  const content = await getPublicContent();
+  const project = await getProjectBySlug(params.slug);
   if (!project) {
     return {
       title: `Project not found — ${content.site.siteName}`,
@@ -25,11 +25,23 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function ProjectDetailPage({ params }) {
-  const content = await getContentStore();
-  const project = content.projects.find((entry) => entry.slug === params.slug);
-  const pageAlignClass = content.site.textAlign === "right" ? "is-right" : "is-left";
+  const [content, projectRecord] = await Promise.all([
+    getPublicContent(),
+    getProjectBySlug(params.slug),
+  ]);
+  const project = projectRecord
+    ? {
+        title: projectRecord.title,
+        discipline: projectRecord.category,
+        year: "",
+        summary: projectRecord.description,
+        detail: projectRecord.description,
+        image: projectRecord.thumbnail,
+      }
+    : null;
+  const pageAlignClass = `align-${content.site.textAlign ?? "left"}`;
 
-  if (!project) {
+  if (!project || !projectRecord?.published) {
     notFound();
   }
 

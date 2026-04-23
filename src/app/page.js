@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/logo-mark";
 import { NycClock } from "@/components/nyc-clock";
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export default async function HomePage() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   const homeAlignClass =
     content.site.homeTextAlign === "right"
       ? "is-align-right"

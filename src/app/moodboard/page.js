@@ -1,16 +1,16 @@
 import Image from "next/image";
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export async function generateMetadata() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   return {
     title: `Moodboard — ${content.site.siteName}`,
   };
 }
 
 export default async function MoodboardPage() {
-  const content = await getContentStore();
-  const pageAlignClass = content.site.textAlign === "right" ? "is-right" : "is-left";
+  const content = await getPublicContent();
+  const pageAlignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (
     <section className={`content-page ${pageAlignClass}`}>

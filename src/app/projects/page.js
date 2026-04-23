@@ -1,18 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArchiveBottomLinks } from "@/components/archive-bottom-links";
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export async function generateMetadata() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   return {
     title: `Projects — ${content.site.siteName}`,
   };
 }
 
 export default async function ProjectsPage() {
-  const content = await getContentStore();
-  const pageAlignClass = content.site.textAlign === "right" ? "is-right" : "is-left";
+  const content = await getPublicContent();
+  const pageAlignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (
     <section className={`content-page ${pageAlignClass}`}>
@@ -25,16 +25,15 @@ export default async function ProjectsPage() {
         {content.projects.map((project) => (
           <li key={project.slug}>
             <Link href={`/projects/${project.slug}`} className="project-card">
-              {/* Replace image paths from /admin or src/data/content-store.json. */}
               <Image
-                src={project.image}
+                src={project.thumbnail}
                 alt={project.title}
                 width={1100}
                 height={900}
               />
               <span>{project.title}</span>
               <small>
-                {project.discipline} / {project.year}
+                {project.category}
               </small>
             </Link>
           </li>

@@ -1,15 +1,93 @@
-# archive_13 — personal portfolio
+# archive_13 — portfolio CMS
 
-A minimal, editorial portfolio built with **Next.js** and **Tailwind CSS**, inspired by old-school web restraint and directory-style navigation.
+A minimal editorial portfolio built with **Next.js** and **Tailwind CSS**, now upgraded to a database-backed CMS with protected admin routes.
 
-## Run locally
+## Stack
+
+- Next.js (App Router)
+- Tailwind CSS
+- Prisma ORM
+- SQLite (dev)
+- NextAuth (credentials auth)
+- Cloudinary (media uploads)
+
+## Setup
+
+1. Install dependencies:
 
 ```bash
 npm install
+```
+
+2. Copy env template and fill required values:
+
+```bash
+cp .env.example .env
+```
+
+3. Generate Prisma client and run migrations:
+
+```bash
+npm run db:generate
+npm run db:migrate -- --name init
+```
+
+4. Seed sample content and admin user:
+
+```bash
+npm run db:seed
+```
+
+5. Start dev server:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+## Admin CMS
+
+- Login: [http://localhost:3000/admin/login](http://localhost:3000/admin/login)
+- Dashboard: [http://localhost:3000/admin/dashboard](http://localhost:3000/admin/dashboard)
+
+### Admin routes
+
+- `/admin/login`
+- `/admin/dashboard`
+- `/admin/projects`
+- `/admin/homepage`
+- `/admin/about`
+- `/admin/contact`
+- `/admin/settings`
+- `/admin/media`
+
+### Default seeded admin credentials
+
+These come from `.env`:
+
+- email: `ADMIN_EMAIL`
+- password: `ADMIN_PASSWORD`
+
+## Public site content flow
+
+Public pages read content from the database through `src/lib/cms.js`, including:
+
+- Site settings / branding
+- Homepage links and headers
+- About and contact copy
+- Project entries
+- Photography and moodboard media collections
+
+The visual style remains minimal/editorial and aligned with the current portfolio design language.
+
+## Media management
+
+The media library (`/admin/media`) supports:
+
+- Uploading images to Cloudinary
+- Saving metadata in database
+- Managing collection/category/sort/featured/published fields
+
+If Cloudinary env vars are missing, uploads are blocked until configured.
 
 ## Build for production
 
@@ -17,92 +95,3 @@ Open [http://localhost:3000](http://localhost:3000).
 npm run build
 npm run start
 ```
-
-## How to Edit This Site
-
-The easiest editing path is now the local admin page.
-
-1. Start the site:
-   ```bash
-   npm run dev
-   ```
-2. Open:
-   - Portfolio: [http://localhost:3000](http://localhost:3000)
-   - Admin editor: [http://localhost:3000/admin](http://localhost:3000/admin)
-3. Edit fields in `/admin` and click **Save Changes**.
-4. Refresh any portfolio page to see updates.
-
-### Admin password protection (optional but recommended)
-
-Set a password for `/admin` by running dev with:
-
-```bash
-ADMIN_PASSWORD=your-password npm run dev
-```
-
-When `ADMIN_PASSWORD` is set:
-- `/admin` requires login
-- `/api/admin/content` save/read actions require an authenticated admin session
-
-Without `ADMIN_PASSWORD`, admin remains open for local use.
-
-### What the admin editor updates
-
-The `/admin` page edits a single source-of-truth file:
-
-- `src/data/content-store.json`
-
-It covers:
-- site title and branding values
-- logo path
-- text alignment controls (site-wide + home page)
-- homepage/navigation links
-- archive bottom utility links
-- about text
-- contact info
-- social links
-- photography items
-- projects
-- moodboard items
-- page labels + utility copy (headers, not-found, project back label)
-
-### Local save flow
-
-- The admin form sends updates to `POST /api/admin/content` (also supports `PUT`).
-- The API writes normalized JSON to `src/data/content-store.json`.
-- This editor is intended for localhost development use.
-
-### New editor features
-
-- **Reset section** buttons in each panel
-- **Drag-and-drop sorting across all list sections**
-  - homepage links
-  - top navigation links
-  - archive bottom links
-  - social links
-  - about paragraphs
-  - about sections
-  - photography categories
-  - photography items
-  - projects
-  - moodboard items
-- **Live editor preview** in a right-side panel
-- **Right/center/left text alignment** controls in site settings
-
-### Optional manual editing
-
-You can still edit content manually by opening:
-
-- `src/data/content-store.json`
-
-The JSON keys map 1:1 to admin form sections.
-
-## Replace placeholder images
-
-All placeholders live in:
-
-- `public/images/photography/`
-- `public/images/projects/`
-- `public/images/moodboard/`
-
-Swap the image files and/or update paths in data files to use your own photography and project assets.

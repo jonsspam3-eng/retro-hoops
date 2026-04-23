@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         String   @default("ADMIN")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SiteConfig {
+  id                     Int      @id @default(1)
+  siteName               String
+  siteTitle              String
+  siteDescription        String
+  logoPath               String
+  locationLabel          String
+  footerNote             String
+  primaryColor           String
+  backgroundColor        String
+  textColor              String
+  defaultTheme           String
+  textAlign              String
+  homeTextAlign          String
+  navigationLinks        Json
+  homepageLinks          Json
+  archiveBottomLinks     Json
+  pageHeaders            Json
+  projectDetailBackLabel String
+  aboutParagraphs        Json
+  aboutSections          Json
+  contactIntro           String
+  contactCollaboration   String
+  contactEmail           String
+  socialLinks            Json
+  notFoundTitle          String
+  notFoundMessage        String
+  notFoundBackLabel      String
+  photographyCategories  Json
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model Project {
+  id           Int      @id @default(autoincrement())
+  title        String
+  slug         String   @unique
+  description  String
+  category     String
+  thumbnail    String
+  galleryImages Json
+  liveLink     String?
+  sortOrder    Int      @default(0)
+  featured     Boolean  @default(false)
+  published    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum MediaCollection {
+  LIBRARY
+  PHOTOGRAPHY
+  MOODBOARD
+}
+
+model MediaAsset {
+  id         Int             @id @default(autoincrement())
+  title      String
+  url        String
+  publicId   String?
+  altText    String?
+  collection MediaCollection @default(LIBRARY)
+  category   String?
+  year       String?
+  location   String?
+  moodType   String?
+  sortOrder  Int             @default(0)
+  featured   Boolean         @default(false)
+  published  Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}

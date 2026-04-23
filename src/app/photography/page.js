@@ -1,16 +1,16 @@
 import { ArchiveBottomLinks } from "@/components/archive-bottom-links";
 import { PhotographyArchive } from "@/components/photography-archive";
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export async function generateMetadata() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   return {
     title: `Photography — ${content.site.siteName}`,
   };
 }
 
 export default async function PhotographyPage() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   const alignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (

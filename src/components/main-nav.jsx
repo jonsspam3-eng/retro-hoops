@@ -33,6 +33,9 @@ export function MainNav({ navigationLinks = [], site }) {
                 </Link>
               </li>
             ))}
+            <li>
+              <Link href="/admin/dashboard">admin</Link>
+            </li>
           </ul>
 
           <button

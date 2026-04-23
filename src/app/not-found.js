@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export default async function NotFound() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   const alignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (

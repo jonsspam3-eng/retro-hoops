@@ -952,3 +952,329 @@ html[data-theme="light"] .lightbox {
     align-items: flex-start;
   }
 }
+
+.admin-cms-page {
+  width: min(1240px, 100%);
+}
+
+.admin-cms-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 0.7rem 0;
+  margin-bottom: 1rem;
+  text-transform: lowercase;
+}
+
+.admin-cms-panel {
+  border: 1px solid var(--line);
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-cms-panel-header h1,
+.admin-cms-panel-header p {
+  margin: 0;
+}
+
+.admin-cms-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 1rem;
+}
+
+.admin-cms-sidebar {
+  border: 1px solid var(--line);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
+.admin-cms-sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-cms-user {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.admin-cms-button,
+.cms-submit,
+.admin-delete {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  cursor: pointer;
+  text-transform: lowercase;
+}
+
+.admin-cms-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-cms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-cms-card {
+  border: 1px solid var(--line);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.admin-cms-card h2,
+.admin-cms-card p {
+  margin: 0;
+}
+
+.admin-cms-link {
+  color: var(--text-soft);
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.admin-crud-card {
+  border: 1px solid var(--line);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.admin-crud-wrap {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-crud-card header h2,
+.admin-crud-card header p {
+  margin: 0;
+}
+
+.admin-crud-form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-form-grid,
+.cms-form-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-field-full {
+  grid-column: 1 / -1;
+}
+
+.admin-form-grid .admin-field,
+.cms-form-grid label {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.admin-form-grid .admin-field span,
+.cms-form-grid label span {
+  color: var(--text-soft);
+}
+
+.admin-form-grid input,
+.admin-form-grid textarea,
+.admin-form-grid select,
+.cms-form-grid input,
+.cms-form-grid textarea,
+.cms-form-grid select {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  padding: 0.44rem 0.5rem;
+  width: 100%;
+}
+
+.admin-form-grid textarea,
+.cms-form-grid textarea {
+  resize: vertical;
+}
+
+.admin-project-list,
+.admin-media-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-project-item,
+.admin-media-item {
+  border: 1px dashed var(--line);
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.admin-project-item h4,
+.admin-media-item h4,
+.admin-project-item p,
+.admin-media-item p {
+  margin: 0;
+}
+
+.admin-project-actions,
+.admin-media-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.admin-check,
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-check input,
+.checkbox-field input {
+  width: auto;
+}
+
+.cms-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.upload-input {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.upload-input input[type="file"] {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.4rem;
+}
+
+.cms-upload-note {
+  color: var(--text-soft);
+}
+
+.cms-media-preview img {
+  width: min(260px, 100%);
+  height: auto;
+  border: 1px solid var(--line);
+  display: block;
+}
+
+.admin-cms-split {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 1rem;
+}
+
+.admin-cms-list {
+  border: 1px solid var(--line);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+}
+
+.admin-cms-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-cms-list-head h2 {
+  margin: 0;
+}
+
+.admin-cms-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.admin-cms-list li {
+  border: 1px dashed var(--line);
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-cms-list li button.is-active {
+  color: var(--text);
+}
+
+.admin-cms-list li button.danger {
+  justify-self: start;
+}
+
+.cms-error {
+  color: var(--accent);
+  margin: 0;
+}
+
+.admin-cms-login {
+  width: min(460px, 100%);
+  border: 1px solid var(--line);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-cms-login h2,
+.admin-cms-login p {
+  margin: 0;
+}
+
+.admin-cms-login form {
+  display: grid;
+  gap: 0.7rem;
+}
+
+@media (max-width: 980px) {
+  .admin-cms-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-cms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-crud-wrap,
+  .admin-cms-split {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-form-grid,
+  .cms-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

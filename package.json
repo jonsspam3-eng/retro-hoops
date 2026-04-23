@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src --ext .js,.jsx"
+    "lint": "eslint src --ext .js,.jsx",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "node prisma/seed.mjs",
+    "postinstall": "prisma generate"
   },
   "repository": {
     "type": "git",
@@ -24,7 +28,11 @@
   },
   "homepage": "https://github.com/jonsspam3-eng/retro-hoops#readme",
   "dependencies": {
+    "@prisma/client": "^6.17.1",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.9.0",
     "next": "^16.2.3",
+    "next-auth": "^4.24.14",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
@@ -32,6 +40,7 @@
     "@tailwindcss/postcss": "^4.2.2",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.3",
+    "prisma": "^6.17.1",
     "tailwindcss": "^4.2.2"
   }
 }

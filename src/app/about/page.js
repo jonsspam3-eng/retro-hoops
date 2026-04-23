@@ -1,15 +1,15 @@
-import { getContentStore } from "@/lib/content-store";
+import { getPublicContent } from "@/lib/cms";
 
 export async function generateMetadata() {
-  const content = await getContentStore();
+  const content = await getPublicContent();
   return {
     title: `About — ${content.site.siteName}`,
   };
 }
 
 export default async function AboutPage() {
-  const content = await getContentStore();
-  const textAlignClass = content.site.textAlign === "right" ? "text-right" : "text-left";
+  const content = await getPublicContent();
+  const textAlignClass = `align-${content.site.textAlign ?? "left"}`;
 
   return (
     <section className={`content-page prose-page ${textAlignClass}`}>

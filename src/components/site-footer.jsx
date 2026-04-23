@@ -6,13 +6,15 @@ export function SiteFooter({ footerNote = "", socialLinks = [] }) {
       <div className="footer-inner">
         <small>{footerNote}</small>
         <ul className="footer-links" aria-label="Social links">
-          {socialLinks.map((item) => (
+          {socialLinks
+            .filter((item) => item?.href)
+            .map((item) => (
             <li key={item.href}>
               <Link href={item.href} target="_blank" rel="noreferrer">
                 {item.label}
               </Link>
             </li>
-          ))}
+            ))}
         </ul>
       </div>
     </footer>
