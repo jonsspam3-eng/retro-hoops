@@ -2,6 +2,35 @@ import { CANVAS, COURT, GAME_CONFIG, GAME_PHASE, SHOT_TYPES, TEAM_SIDES } from "
 import { clamp, distance, lerp, normalize } from "../core/math.js";
 import { getAttribute, speedWithFatigue } from "./ratings.js";
 
+const CROWD_LEVELS = {
+  QUIET: "Quiet",
+  BUZZING: "Buzzing",
+  HYPE: "Hype",
+};
+
+const SOUND_EVENTS = {
+  SWISH: "swish",
+  RIM: "rim",
+  BACKBOARD: "board",
+  CROWD_CHEER: "crowd_cheer",
+  CROWD_GROAN: "crowd_groan",
+  STEAL: "steal",
+  BLOCK: "block",
+  BUZZER: "buzzer",
+};
+
+function shortName(name) {
+  return name.split(" ")[0];
+}
+
+function schoolCode(name) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((part) => part.slice(0, 3).toUpperCase())
+    .join(" ");
+}
+
 function mapToCanvas(x, y) {
   return {
     x: (x / COURT.width) * CANVAS.width,
@@ -26,7 +55,7 @@ function clonePlayers(roster, side, attackRight) {
     ratings: { ...player.ratings },
     stamina: 100,
     hotStreak: 0,
-    x: baseX + (index % 2 === 0 ? 0 : (attackRight ? 2.5 : -2.5)),
+    x: baseX + (index % 2 === 0 ? 0 : attackRight ? 2.5 : -2.5),
     y: ys[index],
     vx: 0,
     vy: 0,
@@ -36,19 +65,19 @@ function clonePlayers(roster, side, attackRight) {
 function drawControlButton(ctx, rect, label, active, variant = "normal") {
   const gradient = ctx.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.h);
   if (variant === "primary") {
-    gradient.addColorStop(0, "rgba(92, 184, 255, 0.92)");
-    gradient.addColorStop(1, "rgba(55, 111, 255, 0.9)");
+    gradient.addColorStop(0, "rgba(107, 196, 255, 0.95)");
+    gradient.addColorStop(1, "rgba(62, 111, 255, 0.93)");
   } else if (variant === "warn") {
-    gradient.addColorStop(0, "rgba(255, 188, 90, 0.92)");
-    gradient.addColorStop(1, "rgba(255, 121, 73, 0.9)");
+    gradient.addColorStop(0, "rgba(255, 194, 108, 0.95)");
+    gradient.addColorStop(1, "rgba(255, 124, 77, 0.93)");
   } else {
-    gradient.addColorStop(0, "rgba(255, 255, 255, 0.2)");
-    gradient.addColorStop(1, "rgba(255, 255, 255, 0.12)");
+    gradient.addColorStop(0, "rgba(255, 255, 255, 0.23)");
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0.13)");
   }
   ctx.fillStyle = gradient;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.strokeStyle = active ? "#ffffff" : "rgba(255,255,255,0.45)";
-  ctx.lineWidth = active ? 2.6 : 1.2;
+  ctx.strokeStyle = active ? "rgba(255,255,255,0.96)" : "rgba(255,255,255,0.48)";
+  ctx.lineWidth = active ? 2.8 : 1.2;
   ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
   ctx.fillStyle = "#eaf2ff";
   ctx.font = "bold 14px Inter, sans-serif";
@@ -57,30 +86,34 @@ function drawControlButton(ctx, rect, label, active, variant = "normal") {
   ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
 }
 
-function drawCourt(ctx) {
+function drawCourt(ctx, crowdEnergy) {
+  const crowdTop = 18 + crowdEnergy * 18;
+  ctx.fillStyle = `rgb(${24 + crowdTop}, ${35 + crowdTop * 0.5}, ${65 + crowdTop * 0.25})`;
+  ctx.fillRect(0, 0, CANVAS.width, 56);
   ctx.fillStyle = "#9f6b41";
-  ctx.fillRect(0, 0, CANVAS.width, CANVAS.height);
+  ctx.fillRect(0, 56, CANVAS.width, CANVAS.height - 56);
   ctx.strokeStyle = "rgba(255,255,255,0.76)";
   ctx.lineWidth = 3;
-  ctx.strokeRect(6, 6, CANVAS.width - 12, CANVAS.height - 12);
+  ctx.strokeRect(6, 62, CANVAS.width - 12, CANVAS.height - 68);
   ctx.beginPath();
-  ctx.moveTo(CANVAS.width / 2, 6);
+  ctx.moveTo(CANVAS.width / 2, 62);
   ctx.lineTo(CANVAS.width / 2, CANVAS.height - 6);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(CANVAS.width / 2, CANVAS.height / 2, 56, 0, Math.PI * 2);
+  ctx.arc(CANVAS.width / 2, (CANVAS.height + 56) / 2, 56, 0, Math.PI * 2);
   ctx.stroke();
 
   const paintW = (COURT.paintWidth / COURT.width) * CANVAS.width;
-  const paintH = (COURT.paintHeight / COURT.height) * CANVAS.height;
-  ctx.strokeRect(0, CANVAS.height / 2 - paintH / 2, paintW, paintH);
-  ctx.strokeRect(CANVAS.width - paintW, CANVAS.height / 2 - paintH / 2, paintW, paintH);
+  const paintH = (COURT.paintHeight / COURT.height) * (CANVAS.height - 56);
+  ctx.strokeRect(0, 56 + (CANVAS.height - 56) / 2 - paintH / 2, paintW, paintH);
+  ctx.strokeRect(CANVAS.width - paintW, 56 + (CANVAS.height - 56) / 2 - paintH / 2, paintW, paintH);
 }
 
 function drawPlayer(ctx, player, teamColor, ringColor, selected, hasBall) {
   const p = mapToCanvas(player.x, player.y);
+  const py = p.y * 0.89 + 56;
   ctx.beginPath();
-  ctx.arc(p.x, p.y, 11, 0, Math.PI * 2);
+  ctx.arc(p.x, py, 11, 0, Math.PI * 2);
   ctx.fillStyle = teamColor;
   ctx.fill();
   ctx.strokeStyle = selected ? "#ffffff" : ringColor;
@@ -88,15 +121,37 @@ function drawPlayer(ctx, player, teamColor, ringColor, selected, hasBall) {
   ctx.stroke();
   if (hasBall) {
     ctx.beginPath();
-    ctx.arc(p.x + 10, p.y + 7, 4, 0, Math.PI * 2);
+    ctx.arc(p.x + 10, py + 7, 4, 0, Math.PI * 2);
     ctx.fillStyle = "#f18e37";
     ctx.fill();
   }
   ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(p.x - 12, p.y - 16, 24, 4);
+  ctx.fillRect(p.x - 12, py - 16, 24, 4);
   const pct = player.stamina / 100;
   ctx.fillStyle = pct > 0.5 ? "#56e894" : pct > 0.32 ? "#ffd45f" : "#ff6f7d";
-  ctx.fillRect(p.x - 12, p.y - 16, pct * 24, 4);
+  ctx.fillRect(p.x - 12, py - 16, pct * 24, 4);
+}
+
+function drawShotBall(ctx, shot, ball) {
+  const progress = clamp(shot.elapsed / shot.duration, 0, 1);
+  const arc = Math.sin(progress * Math.PI) * shot.arcHeight;
+  const px = lerp(shot.startX, shot.endX, progress);
+  const py = lerp(shot.startY, shot.endY, progress) - arc;
+  ball.x = px;
+  ball.y = py;
+  const p = mapToCanvas(px, py);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y * 0.89 + 56, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "#e77f30";
+  ctx.fill();
+}
+
+function drawGroundBall(ctx, ball) {
+  const p = mapToCanvas(ball.x, ball.y);
+  ctx.beginPath();
+  ctx.arc(p.x, p.y * 0.89 + 56, 5, 0, Math.PI * 2);
+  ctx.fillStyle = "#e77f30";
+  ctx.fill();
 }
 
 function nearestPlayer(players, target) {
@@ -115,46 +170,55 @@ function nearestPlayer(players, target) {
 function classifyShotType(shooter, offenseSide) {
   const rim = getRimForOffense(offenseSide);
   const d = distance(shooter, rim);
-  if (d < 2.2 && shooter.vx * shooter.vx + shooter.vy * shooter.vy > 70) return SHOT_TYPES.DUNK;
-  if (d < 5.6) return SHOT_TYPES.LAYUP;
-  if (d > COURT.threeRadius - 1.2) return SHOT_TYPES.THREE;
+  const speed = Math.hypot(shooter.vx, shooter.vy);
+  if (d < 2.2 && speed > 9.3) return SHOT_TYPES.DUNK;
+  if (d < 5.4) return SHOT_TYPES.LAYUP;
+  if (d > COURT.threeRadius - 1.1) return SHOT_TYPES.THREE;
   return SHOT_TYPES.MID;
 }
 
-function shotSuccess({
+function shotTiming(charge) {
+  const target = 0.56;
+  const diff = Math.abs(charge - target);
+  if (diff <= 0.045) return { label: "green", bonus: 0.28 };
+  if (diff <= 0.095) return { label: "solid", bonus: 0.12 };
+  if (diff <= 0.16) return { label: "late/early", bonus: -0.03 };
+  return { label: "off", bonus: -0.18 };
+}
+
+function evaluateShot({
   shooter,
   defender,
+  side,
   shotType,
-  timingCharge,
+  charge,
   isOffDribble,
   staminaPenalty,
+  extraContest = 0,
 }) {
-  const timingTarget = 0.56;
-  const timingDiff = Math.abs(timingCharge - timingTarget);
-  const green = timingDiff <= 0.06;
-  const timingBonus = green ? 0.2 : timingDiff <= 0.12 ? 0.08 : timingDiff <= 0.18 ? -0.04 : -0.14;
-
+  const timing = shotTiming(charge);
   let base = 0.48;
-  if (shotType === SHOT_TYPES.DUNK) base = 0.9 + getAttribute(shooter, "finishing") / 1200;
-  if (shotType === SHOT_TYPES.LAYUP) base = 0.64 + getAttribute(shooter, "finishing") / 340;
-  if (shotType === SHOT_TYPES.MID) base = 0.28 + getAttribute(shooter, "shooting") / 210;
-  if (shotType === SHOT_TYPES.THREE) base = 0.18 + getAttribute(shooter, "threePoint") / 200;
+  if (shotType === SHOT_TYPES.DUNK) base = 0.92 + getAttribute(shooter, "finishing") / 1300;
+  if (shotType === SHOT_TYPES.LAYUP) base = 0.54 + getAttribute(shooter, "finishing") / 330;
+  if (shotType === SHOT_TYPES.MID) base = 0.24 + getAttribute(shooter, "shooting") / 250;
+  if (shotType === SHOT_TYPES.THREE) base = 0.14 + getAttribute(shooter, "threePoint") / 260;
 
-  const contestDistance = defender ? distance(shooter, defender) : 10;
-  const contestValue = defender
-    ? clamp(((GAME_CONFIG.contestRange - contestDistance) / GAME_CONFIG.contestRange) * (getAttribute(defender, "perimeterDefense") / 100), 0, 0.58)
+  const contestDistance = defender ? distance(shooter, defender) : 9;
+  const contest = defender
+    ? clamp(
+        ((GAME_CONFIG.contestRange - contestDistance) / GAME_CONFIG.contestRange) *
+          (getAttribute(defender, "perimeterDefense") / 100) +
+          extraContest,
+        0,
+        0.62
+      )
     : 0;
-  const dribblePenalty = isOffDribble ? 0.07 : 0;
-  const hotBonus = (shooter.hotStreak || 0) * 0.012;
-  const staminaEffect = -staminaPenalty;
 
-  const makeChance = clamp(base + timingBonus + hotBonus - contestValue - dribblePenalty + staminaEffect, 0.05, 0.97);
-  return {
-    made: Math.random() < makeChance,
-    makeChance,
-    green,
-    contestValue,
-  };
+  const dribblePenalty = isOffDribble ? 0.08 : 0;
+  const hotBonus = (shooter.hotStreak || 0) * 0.013;
+  const sideModifier = side === TEAM_SIDES.USER ? 0 : 0.02;
+  const makeChance = clamp(base + timing.bonus + hotBonus - contest - dribblePenalty - staminaPenalty + sideModifier, 0.04, 0.95);
+  return { makeChance, made: Math.random() < makeChance, timing, contest };
 }
 
 function createStats() {
@@ -170,6 +234,37 @@ function createStats() {
     fastBreaks: 0,
     greens: 0,
   };
+}
+
+function crowdLevelLabel(energy) {
+  if (energy > 0.72) return CROWD_LEVELS.HYPE;
+  if (energy > 0.36) return CROWD_LEVELS.BUZZING;
+  return CROWD_LEVELS.QUIET;
+}
+
+function chooseRebounder(players, rim) {
+  let best = players[0];
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const player of players) {
+    const proximity = 1 - clamp(distance(player, rim) / 12, 0, 1);
+    const board = getAttribute(player, "rebounding") / 100;
+    const strength = getAttribute(player, "strength") / 100;
+    const score = board * 0.58 + proximity * 0.3 + strength * 0.12 + Math.random() * 0.2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = player;
+    }
+  }
+  return best;
+}
+
+function applyMomentum(player, desiredVx, desiredVy, accel, drag, dt) {
+  const blend = clamp(accel * dt, 0, 1);
+  player.vx = lerp(player.vx, desiredVx, blend);
+  player.vy = lerp(player.vy, desiredVy, blend);
+  const dragScale = Math.max(0, 1 - drag * dt * 0.08);
+  player.vx *= dragScale;
+  player.vy *= dragScale;
 }
 
 export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onComplete }) {
@@ -190,6 +285,12 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     phase: GAME_PHASE.LIVE,
     freeze: 0,
     log: "Tip won. Attack the rim.",
+    crowdEnergy: 0.28,
+    crowdPeak: 0.28,
+    run: { side: null, points: 0 },
+    soundQueue: [],
+    shotInFlight: null,
+    cpuDecisionTimer: 0,
     ball: {
       mode: "held",
       ownerSide: TEAM_SIDES.USER,
@@ -221,17 +322,37 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     return roster[state.ball.ownerIndex] ?? null;
   }
 
+  function queueSound(eventType) {
+    state.soundQueue.push(eventType);
+  }
+
+  function addCrowd(delta) {
+    state.crowdEnergy = clamp(state.crowdEnergy + delta, 0, 1);
+    state.crowdPeak = Math.max(state.crowdPeak, state.crowdEnergy);
+  }
+
+  function setRun(scoringSide, points) {
+    if (state.run.side === scoringSide) {
+      state.run.points += points;
+    } else {
+      state.run.side = scoringSide;
+      state.run.points = points;
+    }
+  }
+
   function setLog(message) {
     state.log = message;
   }
 
-  function switchPossession(reason, turnover = false) {
-    state.possession = state.possession === TEAM_SIDES.USER ? TEAM_SIDES.CPU : TEAM_SIDES.USER;
+  function switchPossession(reason, turnover = false, offensiveRebound = false) {
+    const previousPossession = state.possession;
+    state.possession = previousPossession === TEAM_SIDES.USER ? TEAM_SIDES.CPU : TEAM_SIDES.USER;
     state.freeze = GAME_CONFIG.possessionFreezeSeconds;
-    state.shotClock = GAME_CONFIG.shotClock;
+    state.shotClock = offensiveRebound ? 14 : GAME_CONFIG.shotClock;
     state.meterCharge = 0;
     input.shootCharge = 0;
     input.shootReleased = false;
+    state.cpuDecisionTimer = 0;
 
     const offense = attackingPlayers();
     state.ball.mode = "held";
@@ -241,40 +362,46 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     state.ball.targetIndex = -1;
     state.ball.x = offense[0].x;
     state.ball.y = offense[0].y;
+    state.shotInFlight = null;
 
     if (turnover) {
-      if (state.possession === TEAM_SIDES.USER) {
-        state.stats.cpu.turnovers += 1;
-      } else {
+      if (previousPossession === TEAM_SIDES.USER) {
         state.stats.user.turnovers += 1;
+      } else {
+        state.stats.cpu.turnovers += 1;
       }
+      state.run.side = null;
+      state.run.points = 0;
     }
 
     setLog(reason);
   }
 
   function handlePass(side) {
+    if (state.shotInFlight) return;
     const roster = side === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
-    if (state.ball.mode !== "held" || state.ball.ownerSide !== side) return;
+    if (state.ball.mode !== "held" || state.ball.ownerSide !== side) return false;
     const from = roster[state.ball.ownerIndex];
     const defenders = side === TEAM_SIDES.USER ? state.cpuPlayers : state.userPlayers;
     const candidates = roster.filter((_, idx) => idx !== state.ball.ownerIndex);
+    if (!candidates.length) return false;
+
     let best = candidates[0];
     let bestScore = Number.NEGATIVE_INFINITY;
-
     for (const player of candidates) {
       const spacing = Math.min(...defenders.map((defender) => distance(defender, player)));
       const lane = -distance(player, from);
-      const score = spacing * 1.3 + lane * 0.08 + getAttribute(player, "passing") * 0.01;
+      const passVision = getAttribute(from, "passing");
+      const targetIQ = getAttribute(player, "iq");
+      const score = spacing * 1.4 + lane * 0.05 + passVision * 0.012 + targetIQ * 0.01;
       if (score > bestScore) {
         bestScore = score;
         best = player;
       }
     }
+
     const targetIndex = roster.indexOf(best);
-    const dx = best.x - from.x;
-    const dy = best.y - from.y;
-    const dir = normalize(dx, dy);
+    const dir = normalize(best.x - from.x, best.y - from.y);
     state.ball.mode = "pass";
     state.ball.targetSide = side;
     state.ball.targetIndex = targetIndex;
@@ -283,81 +410,144 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     state.ball.y = from.y;
     state.ball.vx = dir.x * GAME_CONFIG.passVelocity;
     state.ball.vy = dir.y * GAME_CONFIG.passVelocity;
-    setLog(`${from.name.split(" ")[0]} passes to ${best.name.split(" ")[0]}.`);
+    setLog(`${shortName(from.name)} zips a pass to ${shortName(best.name)}.`);
+    return true;
   }
 
-  function handleShot(side, charge) {
+  function beginShot(side, charge, extraContest = 0) {
+    if (state.shotInFlight) return;
     if (state.ball.mode !== "held" || state.ball.ownerSide !== side) return;
+
     const roster = side === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
     const defense = side === TEAM_SIDES.USER ? state.cpuPlayers : state.userPlayers;
     const shooter = roster[state.ball.ownerIndex];
     const defenderInfo = nearestPlayer(defense, shooter);
     const shotType = classifyShotType(shooter, side);
-    const offDribble = Math.hypot(shooter.vx, shooter.vy) > 3.5;
-    const staminaPenalty = clamp((100 - shooter.stamina) / 260, 0, 0.25);
-    const result = shotSuccess({
+    const offDribble = Math.hypot(shooter.vx, shooter.vy) > 3.2;
+    const staminaPenalty = clamp((100 - shooter.stamina) / 250, 0, 0.26);
+    const shotEval = evaluateShot({
       shooter,
       defender: defenderInfo.player,
+      side,
       shotType,
-      timingCharge: charge,
+      charge,
       isOffDribble: offDribble,
       staminaPenalty,
+      extraContest,
     });
+
     const points = shotType === SHOT_TYPES.THREE ? 3 : 2;
+    const rim = getRimForOffense(side);
+    const missOffsetX = shotEval.timing.label === "off" ? (Math.random() < 0.5 ? -2.1 : 2.1) : Math.random() < 0.5 ? -1 : 1;
+    const missOffsetY = shotEval.timing.label === "off" ? (Math.random() - 0.5) * 2.8 : (Math.random() - 0.5) * 1.6;
+    const endX = shotEval.made ? rim.x : rim.x + missOffsetX;
+    const endY = shotEval.made ? rim.y : rim.y + missOffsetY;
+    const duration = GAME_CONFIG.shotFlightSeconds + (shotType === SHOT_TYPES.THREE ? 0.08 : 0);
+    state.shotInFlight = {
+      side,
+      shooter,
+      shotType,
+      points,
+      made: shotEval.made,
+      green: shotEval.timing.label === "green",
+      releaseLabel: shotEval.timing.label,
+      duration,
+      elapsed: 0,
+      startX: shooter.x + (side === TEAM_SIDES.USER ? 0.9 : -0.9),
+      startY: shooter.y,
+      endX,
+      endY,
+      arcHeight: GAME_CONFIG.shotArcHeight + (shotType === SHOT_TYPES.THREE ? 1.1 : 0),
+      rim,
+    };
+
+    state.ball.mode = "shot";
+    state.ball.ownerIndex = -1;
+    state.ball.targetIndex = -1;
 
     if (side === TEAM_SIDES.USER) {
       state.stats.user.fga += 1;
       if (shotType === SHOT_TYPES.THREE) state.stats.user.tpa += 1;
+      if (shotEval.timing.label === "green") state.stats.user.greens += 1;
     } else {
       state.stats.cpu.fga += 1;
       if (shotType === SHOT_TYPES.THREE) state.stats.cpu.tpa += 1;
     }
 
-    if (result.green && side === TEAM_SIDES.USER) {
-      state.stats.user.greens += 1;
+    if (shotEval.timing.label === "green") {
+      setLog(`${shortName(shooter.name)} times it perfectly!`);
+    } else if (shotEval.timing.label === "off") {
+      setLog(`${shortName(shooter.name)} rushes the release.`);
+    } else {
+      setLog(`${shortName(shooter.name)} pulls up.`);
     }
+  }
 
-    if (result.made) {
-      if (side === TEAM_SIDES.USER) {
-        state.score.user += points;
-        state.stats.user.fgm += 1;
-        if (shotType === SHOT_TYPES.THREE) state.stats.user.tpm += 1;
-        if (shotType === SHOT_TYPES.LAYUP || shotType === SHOT_TYPES.DUNK) {
-          const nearMid = shooter.x > COURT.width * 0.56;
-          if (nearMid) state.stats.user.fastBreaks += 1;
-        }
+  function resolveShot() {
+    if (!state.shotInFlight) return;
+    const shot = state.shotInFlight;
+    const offenseStats = shot.side === TEAM_SIDES.USER ? state.stats.user : state.stats.cpu;
+    const defenseStats = shot.side === TEAM_SIDES.USER ? state.stats.cpu : state.stats.user;
+
+    if (shot.made) {
+      if (shot.side === TEAM_SIDES.USER) {
+        state.score.user += shot.points;
+        addCrowd(0.15 + (shot.green ? 0.1 : 0.03));
       } else {
-        state.score.cpu += points;
-        state.stats.cpu.fgm += 1;
-        if (shotType === SHOT_TYPES.THREE) state.stats.cpu.tpm += 1;
+        state.score.cpu += shot.points;
+        addCrowd(-0.08);
       }
-      shooter.hotStreak = Math.min(4, shooter.hotStreak + 1);
-      switchPossession(`${shooter.name.split(" ")[0]} scores ${points}.`);
+      offenseStats.fgm += 1;
+      if (shot.shotType === SHOT_TYPES.THREE) offenseStats.tpm += 1;
+      if ((shot.shotType === SHOT_TYPES.LAYUP || shot.shotType === SHOT_TYPES.DUNK) && shot.side === TEAM_SIDES.USER && shot.shooter.x > COURT.width * 0.58) {
+        offenseStats.fastBreaks += 1;
+      }
+      shot.shooter.hotStreak = Math.min(4, shot.shooter.hotStreak + 1);
+      setRun(shot.side, shot.points);
+      queueSound(SOUND_EVENTS.SWISH);
+      queueSound(SOUND_EVENTS.CROWD_CHEER);
+      switchPossession(`${shortName(shot.shooter.name)} buries ${shot.points}!`);
       return;
     }
 
-    shooter.hotStreak = Math.max(-3, shooter.hotStreak - 1);
-    setLog(`${shooter.name.split(" ")[0]} misses ${shotType}.`);
+    shot.shooter.hotStreak = Math.max(-3, shot.shooter.hotStreak - 1);
+    const missType = shot.releaseLabel === "off" ? (Math.random() < 0.6 ? "backboard" : "airball") : "rim";
+    if (missType === "backboard") queueSound(SOUND_EVENTS.BACKBOARD);
+    else queueSound(SOUND_EVENTS.RIM);
+    if (shot.side === TEAM_SIDES.USER) queueSound(SOUND_EVENTS.CROWD_GROAN);
+    addCrowd(shot.side === TEAM_SIDES.USER ? -0.06 : 0.02);
 
-    const reboundCandidates = [...state.userPlayers, ...state.cpuPlayers];
-    const rim = getRimForOffense(side);
-    const bestRebound = nearestPlayer(reboundCandidates, rim).player;
-    if (bestRebound.side === side) {
-      if (side === TEAM_SIDES.USER) state.stats.user.offensiveRebounds += 1;
-      else state.stats.cpu.offensiveRebounds += 1;
+    const rebounder = chooseRebounder([...state.userPlayers, ...state.cpuPlayers], shot.rim);
+    const reboundSide = rebounder.side;
+    if (reboundSide === shot.side) {
+      offenseStats.offensiveRebounds += 1;
     }
-    state.possession = bestRebound.side;
+    state.possession = reboundSide;
     state.ball.mode = "held";
-    state.ball.ownerSide = bestRebound.side;
-    const ownerRoster = bestRebound.side === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
-    state.ball.ownerIndex = ownerRoster.indexOf(bestRebound);
-    state.ball.x = bestRebound.x;
-    state.ball.y = bestRebound.y;
-    state.shotClock = GAME_CONFIG.shotClock;
-    setLog(`${bestRebound.name.split(" ")[0]} grabs the board.`);
+    state.ball.ownerSide = reboundSide;
+    const ownerRoster = reboundSide === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
+    state.ball.ownerIndex = ownerRoster.indexOf(rebounder);
+    state.ball.x = rebounder.x;
+    state.ball.y = rebounder.y;
+    state.shotClock = reboundSide === shot.side ? 14 : GAME_CONFIG.shotClock;
+    if (reboundSide !== shot.side) {
+      state.run.side = null;
+      state.run.points = 0;
+    }
+    setLog(`${shortName(rebounder.name)} secures the rebound.`);
+    state.shotInFlight = null;
+  }
+
+  function updateShotInFlight(dt) {
+    if (!state.shotInFlight) return;
+    state.shotInFlight.elapsed += dt;
+    if (state.shotInFlight.elapsed >= state.shotInFlight.duration) {
+      resolveShot();
+    }
   }
 
   function updateBall(dt) {
+    if (state.shotInFlight) return;
     if (state.ball.mode !== "pass") {
       const handler = currentBallHandler();
       if (handler) {
@@ -366,13 +556,13 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
       }
       return;
     }
+
     state.ball.x += state.ball.vx * dt;
     state.ball.y += state.ball.vy * dt;
-
     const all = [...state.userPlayers, ...state.cpuPlayers];
     const targetRoster = state.ball.targetSide === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
     const target = targetRoster[state.ball.targetIndex];
-    if (target && distance(target, state.ball) <= 1.2) {
+    if (target && distance(target, state.ball) <= 1.25) {
       state.ball.mode = "held";
       state.ball.ownerSide = state.ball.targetSide;
       state.ball.ownerIndex = state.ball.targetIndex;
@@ -382,96 +572,161 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     }
 
     const interceptor = all.find((player) => distance(player, state.ball) <= 1.1);
-    if (interceptor) {
-      state.ball.mode = "held";
-      state.ball.ownerSide = interceptor.side;
-      const roster = interceptor.side === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
-      state.ball.ownerIndex = roster.indexOf(interceptor);
-      state.possession = interceptor.side;
-      state.shotClock = GAME_CONFIG.shotClock;
-      if (interceptor.side === TEAM_SIDES.USER) {
-        state.stats.user.steals += 1;
-      } else {
-        state.stats.cpu.steals += 1;
-      }
-      setLog(`${interceptor.name.split(" ")[0]} intercepts.`);
+    if (!interceptor) return;
+    state.ball.mode = "held";
+    state.ball.ownerSide = interceptor.side;
+    const roster = interceptor.side === TEAM_SIDES.USER ? state.userPlayers : state.cpuPlayers;
+    state.ball.ownerIndex = roster.indexOf(interceptor);
+    state.possession = interceptor.side;
+    state.shotClock = GAME_CONFIG.shotClock;
+    state.cpuDecisionTimer = 0;
+    if (interceptor.side === TEAM_SIDES.USER) {
+      state.stats.user.steals += 1;
+      state.stats.cpu.turnovers += 1;
+      queueSound(SOUND_EVENTS.STEAL);
+      addCrowd(0.07);
+    } else {
+      state.stats.cpu.steals += 1;
+      state.stats.user.turnovers += 1;
+      addCrowd(-0.05);
     }
+    state.run.side = null;
+    state.run.points = 0;
+    setLog(`${shortName(interceptor.name)} jumps the lane.`);
   }
 
-  function updatePlayerMovement(dt) {
+  function updateUserMovement(dt) {
+    const handler = currentBallHandler();
+    if (!handler || state.possession !== TEAM_SIDES.USER) return;
+    const speed = speedWithFatigue(
+      GAME_CONFIG.userSpeed * (input.buttons.sprint ? GAME_CONFIG.sprintBoost : 1),
+      handler.stamina,
+      getAttribute(handler, "speed")
+    );
+    const desiredVx = input.joystick.dx * speed;
+    const desiredVy = input.joystick.dy * speed;
+    applyMomentum(handler, desiredVx, desiredVy, GAME_CONFIG.userAcceleration, GAME_CONFIG.userDrag, dt);
+    handler.x = clamp(handler.x + handler.vx * dt, 1.5, COURT.width - 1.5);
+    handler.y = clamp(handler.y + handler.vy * dt, 1.5, COURT.height - 1.5);
+    handler.stamina = clamp(
+      handler.stamina +
+        (input.buttons.sprint ? -GAME_CONFIG.staminaDrainSprint : GAME_CONFIG.staminaRecovery) * dt,
+      24,
+      100
+    );
+  }
+
+  function cpuHandlerTarget(handler) {
+    const rim = getRimForOffense(TEAM_SIDES.CPU);
+    const nearestDef = nearestPlayer(state.userPlayers, handler);
+    const pressure = clamp((GAME_CONFIG.contestRange - nearestDef.dist) / GAME_CONFIG.contestRange, 0, 1);
+    if (pressure > 0.72) {
+      return {
+        x: handler.x + (Math.random() < 0.5 ? -1 : 1) * 4,
+        y: clamp(handler.y + (Math.random() - 0.5) * 7, 4, COURT.height - 4),
+      };
+    }
+    return {
+      x: rim.x,
+      y: lerp(handler.y, rim.y, 0.45),
+    };
+  }
+
+  function updateCpuMovement(dt) {
+    const handler = currentBallHandler();
+    if (!handler || state.possession !== TEAM_SIDES.CPU) return;
+    const target = cpuHandlerTarget(handler);
+    const dir = normalize(target.x - handler.x, target.y - handler.y);
+    const speed = speedWithFatigue(GAME_CONFIG.aiSpeed, handler.stamina, getAttribute(handler, "speed"));
+    applyMomentum(
+      handler,
+      dir.x * speed,
+      dir.y * speed * 0.88,
+      GAME_CONFIG.cpuAcceleration,
+      GAME_CONFIG.cpuDrag,
+      dt
+    );
+    handler.x = clamp(handler.x + handler.vx * dt, 1.5, COURT.width - 1.5);
+    handler.y = clamp(handler.y + handler.vy * dt, 1.5, COURT.height - 1.5);
+    handler.stamina = clamp(handler.stamina - GAME_CONFIG.staminaDrainSprint * 0.33 * dt, 24, 100);
+  }
+
+  function updateOffBallMovement(dt) {
     const offense = attackingPlayers();
     const defense = defendingPlayers();
     const handler = currentBallHandler();
-
-    if (state.possession === TEAM_SIDES.USER && handler) {
-      const speed = speedWithFatigue(
-        GAME_CONFIG.userSpeed * (input.buttons.sprint ? GAME_CONFIG.sprintBoost : 1),
-        handler.stamina,
-        getAttribute(handler, "speed")
-      );
-      handler.vx = input.joystick.dx * speed;
-      handler.vy = input.joystick.dy * speed;
-      handler.x = clamp(handler.x + handler.vx * dt, 1.5, COURT.width - 1.5);
-      handler.y = clamp(handler.y + handler.vy * dt, 1.5, COURT.height - 1.5);
-      handler.stamina = clamp(
-        handler.stamina +
-          (input.buttons.sprint ? -GAME_CONFIG.staminaDrainSprint : GAME_CONFIG.staminaRecovery) * dt,
-        24,
-        100
-      );
-    }
-
-    if (state.possession === TEAM_SIDES.CPU && handler) {
-      const rim = getRimForOffense(TEAM_SIDES.CPU);
-      const dir = normalize(rim.x - handler.x, rim.y - handler.y);
-      const speed = speedWithFatigue(GAME_CONFIG.aiSpeed, handler.stamina, getAttribute(handler, "speed"));
-      handler.vx = dir.x * speed;
-      handler.vy = dir.y * speed * 0.8;
-      handler.x = clamp(handler.x + handler.vx * dt, 1.5, COURT.width - 1.5);
-      handler.y = clamp(handler.y + handler.vy * dt, 1.5, COURT.height - 1.5);
-      handler.stamina = clamp(handler.stamina - GAME_CONFIG.staminaDrainSprint * 0.35 * dt, 24, 100);
-    }
-
     const spacingY = [8, 16, 25, 34, 42];
+    const attackRight = state.possession === TEAM_SIDES.USER;
+    const offensiveAnchorX = attackRight ? 60 : 34;
+
     offense.forEach((player, idx) => {
       if (handler && player.id === handler.id) return;
-      const attackRight = state.possession === TEAM_SIDES.USER;
-      const anchorX = attackRight ? 60 : 34;
-      const targetX = anchorX + Math.sin((state.gameClock + idx * 2) * 0.5) * 7;
+      const targetX = offensiveAnchorX + Math.sin((state.gameClock + idx * 2) * 0.5) * 7;
       const targetY = spacingY[idx] + Math.cos((state.gameClock + idx) * 0.4) * 2.2;
-      player.x = lerp(player.x, clamp(targetX, 3, COURT.width - 3), dt * 2.6);
-      player.y = lerp(player.y, clamp(targetY, 3, COURT.height - 3), dt * 2.6);
-      player.stamina = clamp(player.stamina + GAME_CONFIG.staminaRecovery * 0.55 * dt, 24, 100);
+      player.x = lerp(player.x, clamp(targetX, 3, COURT.width - 3), dt * 2.8);
+      player.y = lerp(player.y, clamp(targetY, 3, COURT.height - 3), dt * 2.8);
+      player.vx = lerp(player.vx, 0, dt * 5.4);
+      player.vy = lerp(player.vy, 0, dt * 5.4);
+      player.stamina = clamp(player.stamina + GAME_CONFIG.staminaRecovery * 0.58 * dt, 24, 100);
     });
 
     defense.forEach((player, idx) => {
       const assignment = offense[idx] ?? offense[0];
-      const targetX = assignment.x + (state.possession === TEAM_SIDES.USER ? -1.4 : 1.4);
-      const targetY = assignment.y;
-      player.x = lerp(player.x, clamp(targetX, 1.5, COURT.width - 1.5), dt * 3.2);
-      player.y = lerp(player.y, clamp(targetY, 1.5, COURT.height - 1.5), dt * 3.2);
-      player.stamina = clamp(player.stamina + GAME_CONFIG.staminaRecovery * 0.6 * dt, 24, 100);
+      const isBallDefender = handler && assignment.id === handler.id;
+      const offset = state.possession === TEAM_SIDES.USER ? -1.2 : 1.2;
+      const targetX = assignment.x + offset + (isBallDefender ? offset * 0.4 : 0);
+      const targetY = assignment.y + (isBallDefender ? (Math.random() - 0.5) * 0.5 : 0);
+      const speedT = isBallDefender ? dt * 4.1 : dt * 3.25;
+      player.x = lerp(player.x, clamp(targetX, 1.5, COURT.width - 1.5), speedT);
+      player.y = lerp(player.y, clamp(targetY, 1.5, COURT.height - 1.5), speedT);
+      player.vx = lerp(player.vx, 0, dt * 4.8);
+      player.vy = lerp(player.vy, 0, dt * 4.8);
+      player.stamina = clamp(player.stamina + GAME_CONFIG.staminaRecovery * 0.62 * dt, 24, 100);
     });
   }
 
-  function maybeCpuActions() {
-    if (state.possession !== TEAM_SIDES.CPU || state.ball.mode !== "held") return;
-    const handler = currentBallHandler();
-    if (!handler) return;
-    if (Math.random() < 0.008) {
-      handlePass(TEAM_SIDES.CPU);
-      return;
-    }
+  function cpuShouldShoot(handler, shotType, defenderDist) {
     const rim = getRimForOffense(TEAM_SIDES.CPU);
     const d = distance(handler, rim);
-    if ((d < 12 && Math.random() < 0.045) || state.shotClock < 3.5) {
-      const charge = clamp(0.45 + Math.random() * 0.3, 0.2, 1.1);
-      handleShot(TEAM_SIDES.CPU, charge);
+    const contestPenalty = clamp((GAME_CONFIG.contestRange - defenderDist) / GAME_CONFIG.contestRange, 0, 1);
+    const ratingBase =
+      shotType === SHOT_TYPES.THREE
+        ? getAttribute(handler, "threePoint") / 100
+        : shotType === SHOT_TYPES.MID
+          ? getAttribute(handler, "shooting") / 100
+          : getAttribute(handler, "finishing") / 100;
+    const shotNeed = clamp((24 - state.shotClock) / 24, 0, 1);
+    const laneBonus = clamp((12 - d) / 12, 0, 1) * 0.25;
+    const quality = ratingBase * 0.58 + shotNeed * 0.32 + laneBonus - contestPenalty * 0.3;
+    if (state.shotClock < 4.2) return true;
+    return quality > 0.52;
+  }
+
+  function maybeCpuActions(dt) {
+    if (state.possession !== TEAM_SIDES.CPU || state.ball.mode !== "held" || state.shotInFlight) return;
+    state.cpuDecisionTimer += dt;
+    if (state.cpuDecisionTimer < GAME_CONFIG.cpuDecisionInterval) return;
+    state.cpuDecisionTimer = 0;
+
+    const handler = currentBallHandler();
+    if (!handler) return;
+    const defender = nearestPlayer(state.userPlayers, handler);
+    const shotType = classifyShotType(handler, TEAM_SIDES.CPU);
+    if (defender.dist < 2.3 && Math.random() < 0.55) {
+      if (handlePass(TEAM_SIDES.CPU)) return;
+    }
+    if (cpuShouldShoot(handler, shotType, defender.dist)) {
+      const release = clamp(0.5 + (Math.random() - 0.5) * 0.16, 0.3, 1);
+      beginShot(TEAM_SIDES.CPU, release);
+      return;
+    }
+    if (Math.random() < 0.15) {
+      handlePass(TEAM_SIDES.CPU);
     }
   }
 
   function maybeDefenseActions() {
-    if (!input.buttons.defense) return;
+    if (!input.buttons.defense || state.shotInFlight) return;
     const handler = currentBallHandler();
     if (!handler || handler.side !== TEAM_SIDES.CPU) return;
     const userDefender = state.userPlayers[state.selectedUserIndex] ?? state.userPlayers[0];
@@ -480,7 +735,7 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     if (dist <= GAME_CONFIG.stealRange) {
       const stealSkill = getAttribute(userDefender, "perimeterDefense") * 0.6 + getAttribute(userDefender, "ballHandling") * 0.4;
       const protectSkill = getAttribute(handler, "ballHandling") * 0.8 + getAttribute(handler, "strength") * 0.2;
-      const stealChance = clamp((stealSkill - protectSkill + 45) / 550, 0.01, 0.22);
+      const stealChance = clamp((stealSkill - protectSkill + 42) / 580, 0.01, 0.18);
       if (Math.random() < stealChance) {
         state.ball.ownerSide = TEAM_SIDES.USER;
         state.ball.ownerIndex = state.selectedUserIndex;
@@ -488,7 +743,11 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
         state.shotClock = GAME_CONFIG.shotClock;
         state.stats.user.steals += 1;
         state.stats.cpu.turnovers += 1;
-        setLog(`${userDefender.name.split(" ")[0]} strips the ball.`);
+        state.run.side = null;
+        state.run.points = 0;
+        queueSound(SOUND_EVENTS.STEAL);
+        addCrowd(0.09);
+        setLog(`${shortName(userDefender.name)} strips it clean.`);
       }
     }
   }
@@ -502,14 +761,14 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     if (input.buttons.switchDefense) {
       input.buttons.switchDefense = false;
       state.selectedUserIndex = (state.selectedUserIndex + 1) % state.userPlayers.length;
-      setLog(`Control switched to ${state.userPlayers[state.selectedUserIndex].name.split(" ")[0]}.`);
+      setLog(`Switched to ${shortName(state.userPlayers[state.selectedUserIndex].name)} on defense.`);
     }
     if (input.buttons.pick) {
       input.buttons.pick = false;
-      setLog("Pick action triggered (advanced screen logic stub).");
+      setLog("P&R trigger armed (phase 3: full screener behavior).");
     }
     if (chargeReleased && state.possession === TEAM_SIDES.USER) {
-      handleShot(TEAM_SIDES.USER, chargeValue);
+      beginShot(TEAM_SIDES.USER, chargeValue);
     }
   }
 
@@ -517,26 +776,32 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
     if (state.phase === GAME_PHASE.FINAL) return;
     state.gameClock = Math.max(0, state.gameClock - dt);
     state.shotClock = Math.max(0, state.shotClock - dt);
+    state.crowdEnergy = Math.max(0, state.crowdEnergy - GAME_CONFIG.crowdDecay * dt);
+
     if (state.shotClock <= 0) {
+      queueSound(SOUND_EVENTS.BUZZER);
       switchPossession("Shot clock violation.", true);
     }
-    if (state.gameClock <= 0) {
-      if (state.quarter >= GAME_CONFIG.totalQuarters) {
-        state.phase = GAME_PHASE.FINAL;
-        setLog("Final buzzer.");
-        return;
-      }
-      state.quarter += 1;
-      state.gameClock = GAME_CONFIG.quarterLength;
-      state.shotClock = GAME_CONFIG.shotClock;
-      state.freeze = 1;
-      setLog(`Quarter ${state.quarter} begins.`);
+
+    if (state.gameClock > 0) return;
+    if (state.quarter >= GAME_CONFIG.totalQuarters) {
+      state.phase = GAME_PHASE.FINAL;
+      queueSound(SOUND_EVENTS.BUZZER);
+      setLog("Final buzzer.");
+      return;
     }
+    state.quarter += 1;
+    state.gameClock = GAME_CONFIG.quarterLength;
+    state.shotClock = GAME_CONFIG.shotClock;
+    state.freeze = 1;
+    setLog(`Quarter ${state.quarter} starts.`);
   }
 
   function maybeComplete() {
     if (state.phase !== GAME_PHASE.FINAL || state.finalResultSent) return;
     state.finalResultSent = true;
+    const userFgp = state.stats.user.fga ? Math.round((state.stats.user.fgm / state.stats.user.fga) * 100) : 0;
+    const cpuFgp = state.stats.cpu.fga ? Math.round((state.stats.cpu.fgm / state.stats.cpu.fga) * 100) : 0;
     const result = {
       didWin: state.score.user >= state.score.cpu,
       userScore: state.score.user,
@@ -549,6 +814,9 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
         offensiveBoards: state.stats.user.offensiveRebounds,
         turnovers: state.stats.user.turnovers,
         greenReleases: state.stats.user.greens,
+        fgp: userFgp,
+        oppFgp: cpuFgp,
+        crowdPeak: Math.round(state.crowdPeak * 100),
       },
     };
     if (typeof state.onComplete === "function") {
@@ -558,7 +826,7 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
 
   function draw(canvas) {
     const ctx = canvas.getContext("2d");
-    drawCourt(ctx);
+    drawCourt(ctx, state.crowdEnergy);
 
     state.userPlayers.forEach((player, idx) => {
       drawPlayer(
@@ -567,9 +835,7 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
         state.userTeam.colors.primary,
         state.userTeam.colors.secondary,
         idx === state.selectedUserIndex,
-        state.ball.mode === "held" &&
-          state.ball.ownerSide === TEAM_SIDES.USER &&
-          state.ball.ownerIndex === idx
+        state.ball.mode === "held" && state.ball.ownerSide === TEAM_SIDES.USER && state.ball.ownerIndex === idx
       );
     });
 
@@ -580,29 +846,27 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
         state.cpuTeam.colors.primary,
         state.cpuTeam.colors.secondary,
         false,
-        state.ball.mode === "held" &&
-          state.ball.ownerSide === TEAM_SIDES.CPU &&
-          state.ball.ownerIndex === idx
+        state.ball.mode === "held" && state.ball.ownerSide === TEAM_SIDES.CPU && state.ball.ownerIndex === idx
       );
     });
 
-    const b = mapToCanvas(state.ball.x, state.ball.y);
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-    ctx.fillStyle = "#e77f30";
-    ctx.fill();
+    if (state.shotInFlight) {
+      drawShotBall(ctx, state.shotInFlight, state.ball);
+    } else {
+      drawGroundBall(ctx, state.ball);
+    }
 
     ctx.fillStyle = "rgba(9,15,29,0.24)";
-    ctx.fillRect(0, CANVAS.height - 150, CANVAS.width * 0.5, 150);
-    ctx.fillRect(CANVAS.width * 0.5, CANVAS.height - 210, CANVAS.width * 0.5, 210);
+    ctx.fillRect(0, CANVAS.height - 162, CANVAS.width * 0.52, 162);
+    ctx.fillRect(CANVAS.width * 0.47, CANVAS.height - 226, CANVAS.width * 0.53, 226);
 
     ctx.beginPath();
-    ctx.arc(input.joystick.baseX, input.joystick.baseY, 46, 0, Math.PI * 2);
+    ctx.arc(input.joystick.baseX, input.joystick.baseY, 50, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.16)";
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(input.joystick.knobX, input.joystick.knobY, 19, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.arc(input.joystick.knobX, input.joystick.knobY, 21, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.74)";
     ctx.fill();
 
     drawControlButton(ctx, controlLayout.pass, "PASS", input.buttons.pass);
@@ -615,10 +879,18 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
 
   function getHud() {
     return {
-      left: `${state.userTeam.schoolName} ${state.score.user}`,
-      center: `Q${state.quarter} ${Math.floor(state.gameClock / 60)}:${String(Math.floor(state.gameClock % 60)).padStart(2, "0")} | :${String(Math.ceil(state.shotClock)).padStart(2, "0")}`,
-      right: `${state.score.cpu} ${state.cpuTeam.schoolName}`,
+      left: `${schoolCode(state.userTeam.schoolName)} ${state.score.user}`,
+      center: `Q${state.quarter} ${Math.floor(state.gameClock / 60)}:${String(Math.floor(state.gameClock % 60)).padStart(2, "0")}`,
+      shotClock: `SHOT :${String(Math.ceil(state.shotClock)).padStart(2, "0")}`,
+      right: `${state.score.cpu} ${schoolCode(state.cpuTeam.schoolName)}`,
       meter: clamp(state.meterCharge / 1.2, 0, 1),
+      crowd: `Crowd: ${crowdLevelLabel(state.crowdEnergy)}`,
+      run:
+        state.run.side === TEAM_SIDES.USER
+          ? `Run: You ${state.run.points}-0`
+          : state.run.side === TEAM_SIDES.CPU
+            ? `Run: CPU ${state.run.points}-0`
+            : "Run: Even",
       log: state.log,
     };
   }
@@ -633,21 +905,26 @@ export function createGameRuntime({ userTeam, cpuTeam, input, controlLayout, onC
       if (state.freeze > 0) {
         state.freeze = Math.max(0, state.freeze - dt);
       } else {
-        if (state.possession === TEAM_SIDES.USER) {
-          state.meterCharge = input.shootCharge;
-        } else {
-          state.meterCharge = 0;
-        }
+        state.meterCharge = state.possession === TEAM_SIDES.USER ? input.shootCharge : 0;
         handleUserButtons(shootRelease.released, shootRelease.charge);
-        updatePlayerMovement(dt);
-        maybeCpuActions();
+        updateUserMovement(dt);
+        updateCpuMovement(dt);
+        updateOffBallMovement(dt);
+        maybeCpuActions(dt);
         maybeDefenseActions();
         updateBall(dt);
+        updateShotInFlight(dt);
       }
       updateClock(dt);
       maybeComplete();
     },
     draw,
     getHud,
+    getAndClearSoundEvents() {
+      if (!state.soundQueue.length) return [];
+      const events = [...state.soundQueue];
+      state.soundQueue = [];
+      return events;
+    },
   };
 }

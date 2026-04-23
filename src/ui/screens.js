@@ -144,10 +144,17 @@ export function renderDynastyHubScreen(root, { state, schedule, latestNote }) {
 export function renderGameScreen(root) {
   root.innerHTML = `
     <section class="screen active game-shell" data-screen="${APP_SCREENS.GAME}">
-      <div class="hud">
-        <div id="hud-score-left">Home 0</div>
-        <div class="center" id="hud-time">Q1 2:00 | :24</div>
-        <div class="right" id="hud-score-right">Away 0</div>
+      <div class="hud scorebug">
+        <div class="team-chip" id="hud-score-left">HOME 0</div>
+        <div class="center">
+          <div id="hud-time">Q1 2:00</div>
+          <div id="hud-shotclock" class="shot-pill">SHOT :24</div>
+        </div>
+        <div class="team-chip right" id="hud-score-right">0 AWAY</div>
+      </div>
+      <div class="hud-secondary">
+        <div id="hud-crowd">Crowd: Quiet</div>
+        <div id="hud-run">Run: Even</div>
       </div>
       <div class="meter-wrap"><div id="shot-meter" class="meter-bar"></div></div>
       <div class="court-wrap">
@@ -164,19 +171,49 @@ export function renderPostgameScreen(root, { state }) {
     root.innerHTML = `<section class="screen active"><div class="panel">No game results available.</div></section>`;
     return;
   }
+  const qualityScore =
+    game.teamStats.greenReleases * 12 +
+    game.teamStats.steals * 9 +
+    game.teamStats.fastBreaks * 8 +
+    game.teamStats.fgp * 0.5 -
+    game.teamStats.turnovers * 6;
+  const grade =
+    qualityScore > 58 ? "A" : qualityScore > 46 ? "B" : qualityScore > 34 ? "C" : qualityScore > 24 ? "D" : "F";
+  const momentum = game.didWin ? "Program momentum rises." : "Use this tape in practice.";
   root.innerHTML = `
     <section class="screen active" data-screen="${APP_SCREENS.POSTGAME}">
-      <h2 class="title">${game.didWin ? "Victory" : "Defeat"}</h2>
+      <h2 class="title">${game.didWin ? "Victory" : "Final"}</h2>
       <p class="subtitle">${state.teamProfile.schoolName} ${game.userScore} - ${game.cpuScore} ${game.opponentName}</p>
+      <div class="panel postgame-hero">
+        <div>
+          <div class="small">Performance grade</div>
+          <div class="grade-pill">${grade}</div>
+        </div>
+        <div>
+          <div class="small">FG%</div>
+          <div class="grade-stat">${game.teamStats.fgp}</div>
+        </div>
+        <div>
+          <div class="small">Opp FG%</div>
+          <div class="grade-stat">${game.teamStats.oppFgp}</div>
+        </div>
+        <div>
+          <div class="small">Crowd Peak</div>
+          <div class="grade-stat">${game.teamStats.crowdPeak}%</div>
+        </div>
+      </div>
       <div class="panel season-grid">
         <div><strong>Steals</strong><div class="small">${game.teamStats.steals}</div></div>
         <div><strong>Blocks</strong><div class="small">${game.teamStats.blocks}</div></div>
         <div><strong>Fast Breaks</strong><div class="small">${game.teamStats.fastBreaks}</div></div>
         <div><strong>Green Releases</strong><div class="small">${game.teamStats.greenReleases}</div></div>
+        <div><strong>Turnovers</strong><div class="small">${game.teamStats.turnovers}</div></div>
+        <div><strong>Off Reb</strong><div class="small">${game.teamStats.offensiveBoards}</div></div>
       </div>
       <div class="panel">
         <div class="small">Record: ${state.season.wins}-${state.season.losses}</div>
         <div class="small">Poll #${state.season.pollRank} • Prestige ${state.season.prestige}</div>
+        <div class="small">${momentum}</div>
       </div>
       <div class="row">
         <button class="btn" data-action="to-dynasty">Continue Dynasty</button>

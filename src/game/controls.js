@@ -67,12 +67,12 @@ function hitBox(point, rect) {
 
 export function createControlLayout() {
   return {
-    pass: { x: CANVAS.width - 186, y: CANVAS.height - 116, w: 88, h: 48 },
-    shoot: { x: CANVAS.width - 96, y: CANVAS.height - 186, w: 84, h: 94 },
-    sprint: { x: CANVAS.width - 96, y: CANVAS.height - 86, w: 84, h: 52 },
-    defense: { x: CANVAS.width - 286, y: CANVAS.height - 168, w: 96, h: 58 },
-    pick: { x: CANVAS.width - 286, y: CANVAS.height - 101, w: 96, h: 44 },
-    switchDefense: { x: CANVAS.width - 286, y: CANVAS.height - 52, w: 96, h: 38 },
+    pass: { x: CANVAS.width - 216, y: CANVAS.height - 132, w: 106, h: 56 },
+    shoot: { x: CANVAS.width - 104, y: CANVAS.height - 214, w: 92, h: 112 },
+    sprint: { x: CANVAS.width - 104, y: CANVAS.height - 92, w: 92, h: 60 },
+    defense: { x: CANVAS.width - 330, y: CANVAS.height - 186, w: 106, h: 64 },
+    pick: { x: CANVAS.width - 330, y: CANVAS.height - 110, w: 106, h: 52 },
+    switchDefense: { x: CANVAS.width - 330, y: CANVAS.height - 54, w: 106, h: 42 },
   };
 }
 

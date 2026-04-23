@@ -31,6 +31,18 @@ body {
 #app {
   height: 100%;
   width: 100%;
+  transition: opacity 120ms ease, transform 120ms ease;
+  transform-origin: center;
+}
+
+#app.transition-out {
+  opacity: 0;
+  transform: scale(0.987) translateY(4px);
+}
+
+#app.transition-in {
+  opacity: 1;
+  transform: scale(1) translateY(0);
 }
 
 .screen {
@@ -145,12 +157,43 @@ select {
   font-weight: 700;
 }
 
+.hud.scorebug {
+  background: linear-gradient(90deg, rgba(7, 14, 33, 0.72), rgba(17, 27, 54, 0.68));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
 .hud .center {
   text-align: center;
 }
 
 .hud .right {
   text-align: right;
+}
+
+.shot-pill {
+  margin-top: 3px;
+  font-size: 0.73rem;
+  letter-spacing: 0.07em;
+  color: #b7f7da;
+}
+
+.hud-secondary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 6px;
+  font-size: 0.76rem;
+  color: #b8c5ef;
 }
 
 .meter-wrap {
@@ -263,9 +306,10 @@ select {
 }
 
 .log {
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   color: var(--muted);
-  min-height: 18px;
+  min-height: 22px;
+  padding: 2px 4px 0;
 }
 
 .season-grid {
@@ -274,9 +318,57 @@ select {
   gap: 8px;
 }
 
+.postgame-hero {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.grade-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  min-width: 46px;
+  min-height: 46px;
+  background: linear-gradient(180deg, #7af8c8, #39cd9f);
+  color: #052423;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.grade-stat {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
 @media (min-width: 900px) {
   .screen {
     max-width: 920px;
     margin: 0 auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .postgame-hero {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .team-chip {
+    font-size: 0.7rem;
+    padding: 5px 8px;
+  }
+
+  .hud {
+    gap: 5px;
+    padding: 7px 8px;
+  }
+
+  .hud-secondary {
+    font-size: 0.7rem;
+  }
+
+  .game-shell {
+    gap: 6px;
   }
 }

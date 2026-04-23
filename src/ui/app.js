@@ -26,10 +26,31 @@ export function createApp(root) {
   let gameSession = null;
   let schedule = [];
   let selectedTeamId = TEAM_PRESETS[0].id;
+  let transition = { active: false, phase: "idle", target: null };
+  let transitionToken = 0;
+
+  function applyTransitionState() {
+    root.classList.toggle("transition-out", transition.active && transition.phase === "out");
+    root.classList.toggle("transition-in", transition.active && transition.phase === "in");
+  }
 
   function goTo(screen) {
-    state.activeScreen = screen;
-    render();
+    transitionToken += 1;
+    const token = transitionToken;
+    transition = { active: true, phase: "out", target: screen };
+    applyTransitionState();
+    setTimeout(() => {
+      if (token !== transitionToken) return;
+      state.activeScreen = transition.target;
+      render();
+      transition = { active: true, phase: "in", target: null };
+      applyTransitionState();
+      setTimeout(() => {
+        if (token !== transitionToken) return;
+        transition = { active: false, phase: "idle", target: null };
+        applyTransitionState();
+      }, 130);
+    }, 110);
   }
 
   function startNewProgram() {
