@@ -3,6 +3,7 @@ import { MainNav } from "@/components/main-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getPublicContent } from "@/lib/cms";
+import { PageTransition } from "@/components/page-transition";
 
 export async function generateMetadata() {
   const content = await getPublicContent();
@@ -31,7 +32,9 @@ export default async function RootLayout({ children }) {
         <ThemeProvider defaultTheme={content.site.defaultTheme}>
           <div className="site-frame">
             <MainNav navigationLinks={content.navigationLinks} site={content.site} />
-            <main className="page-main">{children}</main>
+            <main>
+              <PageTransition>{children}</PageTransition>
+            </main>
             <SiteFooter
               footerNote={content.site.footerNote}
               socialLinks={content.socialLinks}

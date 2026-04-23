@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo, useState } from "react";
+import { FadeImage } from "@/components/fade-image";
 
 export function PhotographyArchive({ entries, categories }) {
   const [activeCategory, setActiveCategory] = useState(categories[0] ?? "all");
@@ -43,11 +43,13 @@ export function PhotographyArchive({ entries, categories }) {
                   onClick={() => setActiveItem(entry)}
                 >
                   {/* Replace image paths from the CMS admin media library. */}
-                  <Image
+                  <FadeImage
                     src={entry.image}
                     alt={`${entry.title} — ${entry.location}`}
                     width={960}
                     height={1200}
+                    sizes="(max-width: 900px) 50vw, 30vw"
+                    imageClassName="archive-image"
                   />
                   <span>
                     {entry.title} / {entry.year}
@@ -77,12 +79,14 @@ export function PhotographyArchive({ entries, categories }) {
             >
               close
             </button>
-            <Image
+            <FadeImage
               src={activeItem.image}
               alt={activeItem.title}
               width={1400}
               height={1800}
               priority
+              sizes="90vw"
+              imageClassName="lightbox-image"
             />
             <p>
               {activeItem.title} / {activeItem.location} / {activeItem.year}

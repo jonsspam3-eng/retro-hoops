@@ -16,10 +16,7 @@ export default async function AdminAboutPage() {
   };
 
   return (
-    <AdminShell
-      title="about"
-      description="Edit about page title, paragraphs, and section blocks."
-    >
+    <AdminShell title="about" description="Edit narrative copy and about detail sections.">
       <SiteSectionForm section="about" initialData={initialData} />
     </AdminShell>
   );

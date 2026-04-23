@@ -6,7 +6,7 @@ export default async function AdminProjectsPage() {
   const projects = await listProjects({ includeUnpublished: true });
 
   return (
-    <AdminShell title="projects" description="Create, edit, publish, and sort projects.">
+    <AdminShell title="projects" description="Create, edit, publish, and reorder work.">
       <ProjectsManager initialProjects={projects} />
     </AdminShell>
   );

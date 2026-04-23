@@ -9,11 +9,11 @@ export function SiteFooter({ footerNote = "", socialLinks = [] }) {
           {socialLinks
             .filter((item) => item?.href)
             .map((item) => (
-            <li key={item.href}>
-              <Link href={item.href} target="_blank" rel="noreferrer">
-                {item.label}
-              </Link>
-            </li>
+              <li key={item.href}>
+                <Link href={item.href} target="_blank" rel="noreferrer" prefetch={false}>
+                  {item.label}
+                </Link>
+              </li>
             ))}
         </ul>
       </div>

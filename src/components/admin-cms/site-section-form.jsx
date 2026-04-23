@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useAdminToast } from "@/components/admin-cms/toast-context";
 
 function toPrettyJson(value) {
   return JSON.stringify(value, null, 2);
@@ -23,6 +24,7 @@ function splitLines(value) {
 }
 
 export function SiteSectionForm({ section, initialData, endpoint }) {
+  const { pushToast } = useAdminToast();
   const [form, setForm] = useState(() => {
     if (section === "homepage") {
       return {
@@ -162,8 +164,17 @@ export function SiteSectionForm({ section, initialData, endpoint }) {
         throw new Error(result?.error || "Failed to save changes.");
       }
       setMessage("Saved.");
+      pushToast({
+        title: "Section saved",
+        message: `${section} settings updated.`,
+      });
     } catch (submitError) {
       setError(submitError.message || "Failed to save changes.");
+      pushToast({
+        title: "Save failed",
+        message: submitError.message || "Failed to save changes.",
+        tone: "error",
+      });
     } finally {
       setSaving(false);
     }

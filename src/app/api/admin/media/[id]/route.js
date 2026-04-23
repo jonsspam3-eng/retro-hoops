@@ -11,7 +11,7 @@ export async function PATCH(request, { params }) {
   try {
     const payload = await request.json();
     const media = await updateMedia(params.id, payload);
-    return NextResponse.json(media);
+    return NextResponse.json({ ok: true, media });
   } catch (error) {
     return NextResponse.json(
       { error: error?.message || "Unable to update media." },
@@ -27,8 +27,8 @@ export async function DELETE(_, { params }) {
   }
 
   try {
-    const deleted = await deleteMedia(params.id);
-    return NextResponse.json(deleted);
+    await deleteMedia(params.id);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
       { error: error?.message || "Unable to delete media." },

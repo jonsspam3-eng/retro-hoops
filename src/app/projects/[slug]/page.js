@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FadeImage } from "@/components/fade-image";
 import { getProjectBySlug, getPublicContent, listProjects } from "@/lib/cms";
 
 export async function generateStaticParams() {
@@ -60,7 +60,15 @@ export default async function ProjectDetailPage({ params }) {
         </p>
       </header>
 
-      <Image src={project.image} alt={project.title} width={1700} height={1200} />
+      <FadeImage
+        src={project.image}
+        alt={project.title}
+        width={1700}
+        height={1200}
+        priority
+        sizes="(max-width: 900px) 100vw, 80vw"
+        imageClassName="project-detail-image"
+      />
 
       <p>{project.detail}</p>
     </article>

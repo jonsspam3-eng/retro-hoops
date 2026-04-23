@@ -30,7 +30,9 @@ export default async function HomePage() {
         <ul>
           {content.homepageLinks.map((item) => (
             <li key={item.href}>
-              <Link href={item.href}>{item.label}</Link>
+              <Link href={item.href} prefetch>
+                {item.label}
+              </Link>
             </li>
           ))}
         </ul>

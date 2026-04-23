@@ -1,6 +1,6 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArchiveBottomLinks } from "@/components/archive-bottom-links";
+import { FadeImage } from "@/components/fade-image";
 import { getPublicContent } from "@/lib/cms";
 
 export async function generateMetadata() {
@@ -25,11 +25,13 @@ export default async function ProjectsPage() {
         {content.projects.map((project) => (
           <li key={project.slug}>
             <Link href={`/projects/${project.slug}`} className="project-card">
-              <Image
+              <FadeImage
                 src={project.thumbnail}
                 alt={project.title}
                 width={1100}
                 height={900}
+                sizes="(max-width: 700px) 100vw, 48vw"
+                imageClassName="project-image"
               />
               <span>{project.title}</span>
               <small>

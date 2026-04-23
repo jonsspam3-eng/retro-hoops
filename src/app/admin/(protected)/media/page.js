@@ -1,5 +1,5 @@
-import { MediaForm } from "@/components/admin-cms/media-form";
 import { AdminShell } from "@/components/admin-cms/admin-shell";
+import { MediaForm } from "@/components/admin-cms/media-form";
 import { listMedia } from "@/lib/cms";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function AdminMediaPage() {
   }));
 
   return (
-    <AdminShell title="media" description="Upload and organize media assets.">
+    <AdminShell title="media" description="Upload, tag, reuse, and reorder assets.">
       <MediaForm initialItems={initialItems} />
     </AdminShell>
   );

@@ -18,16 +18,22 @@ export async function AdminShell({ title, description, children }) {
 
   return (
     <section className="content-page admin-cms-page">
-      <header className="section-header">
-        <h1>{title}</h1>
-        <p>{description}</p>
+      <header className="admin-cms-page-head">
+        <div>
+          <p className="admin-cms-kicker">portfolio cms</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+        <div className="admin-cms-page-meta">
+          <p className="admin-cms-user">
+            {session?.user?.email ? `signed in as ${session.user.email}` : "admin"}
+          </p>
+          <AdminSignOutButton />
+        </div>
       </header>
 
       <div className="admin-cms-layout">
         <aside className="admin-cms-sidebar">
-          <p className="admin-cms-user">
-            {session?.user?.email ? `signed in as ${session.user.email}` : "admin"}
-          </p>
           <nav aria-label="Admin navigation">
             <ul>
               {adminNav.map((item) => (
@@ -37,7 +43,6 @@ export async function AdminShell({ title, description, children }) {
               ))}
             </ul>
           </nav>
-          <AdminSignOutButton />
         </aside>
 
         <div className="admin-cms-content">{children}</div>

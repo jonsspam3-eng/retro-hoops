@@ -2,17 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useTheme } from "@/components/theme-provider";
 import { LogoMark } from "@/components/logo-mark";
 
 export function MainNav({ navigationLinks = [], site }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <header className="site-header">
       <nav className="site-nav" aria-label="Primary">
-        <Link href="/" className="nav-wordmark" aria-label="Go to homepage">
+        <Link
+          href="/"
+          className="nav-wordmark"
+          aria-label="Go to homepage"
+          onClick={closeMenu}
+        >
           <LogoMark
             className="nav-logo"
             altSuffix="wordmark"
@@ -20,21 +28,38 @@ export function MainNav({ navigationLinks = [], site }) {
             siteName={site?.siteName ?? "portfolio"}
           />
         </Link>
+        <p className="site-title-mark">{site?.siteTitle || "creative portfolio"}</p>
 
         <div className="nav-links-wrap">
-          <ul className="nav-links">
-            {navigationLinks.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={pathname === link.href ? "active" : undefined}
-                >
-                  {link.label}
-                </Link>
-              </li>
-            ))}
+          <button
+            type="button"
+            className="nav-menu-toggle"
+            aria-expanded={menuOpen}
+            aria-controls="site-nav-links"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            menu
+          </button>
+
+          <ul id="site-nav-links" className={`nav-links ${menuOpen ? "is-open" : ""}`}>
+            {navigationLinks.map((link) => {
+              const isActive = pathname === link.href;
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={isActive ? "active" : undefined}
+                    onClick={closeMenu}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              );
+            })}
             <li>
-              <Link href="/admin/dashboard">admin</Link>
+              <Link href="/admin/dashboard" onClick={closeMenu}>
+                admin
+              </Link>
             </li>
           </ul>
 

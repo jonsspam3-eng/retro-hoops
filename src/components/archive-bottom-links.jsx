@@ -4,7 +4,7 @@ export function ArchiveBottomLinks({ links = [] }) {
   return (
     <nav className="archive-bottom-nav" aria-label="Archive utility links">
       {links.slice(0, 4).map((item) => (
-        <Link key={item.href} href={item.href}>
+        <Link key={item.href} href={item.href} prefetch>
           {item.label}
         </Link>
       ))}

@@ -1,6 +1,6 @@
-import { AdminShell } from "@/components/admin-cms/admin-shell";
 import { SiteSectionForm } from "@/components/admin-cms/site-section-form";
 import { getSiteConfig } from "@/lib/cms";
+import { AdminShell } from "@/components/admin-cms/admin-shell";
 
 export const metadata = {
   title: "Admin Settings",
@@ -24,10 +24,7 @@ export default async function AdminSettingsPage() {
   };
 
   return (
-    <AdminShell
-      title="settings"
-      description="Theme, palette, footer, and utility copy."
-    >
+    <AdminShell title="settings" description="Theme, palette, footer, and utility copy.">
       <SiteSectionForm section="settings" initialData={initialData} />
     </AdminShell>
   );

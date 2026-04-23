@@ -18,7 +18,7 @@ export default async function AdminContactPage() {
   };
 
   return (
-    <AdminShell title="contact" description="Edit contact copy and social links.">
+    <AdminShell title="contact" description="Update inquiry copy and social links.">
       <SiteSectionForm section="contact" initialData={initialData} />
     </AdminShell>
   );

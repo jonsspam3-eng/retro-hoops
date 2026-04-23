@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULT_PAGE_HEADERS = {
@@ -173,10 +174,10 @@ async function ensureSiteConfig() {
   });
 }
 
-export async function getSiteConfig() {
+export const getSiteConfig = cache(async function getSiteConfig() {
   const config = await ensureSiteConfig();
   return normalizeSiteConfig(config);
-}
+});
 
 function mapProject(project) {
   return {
@@ -213,18 +214,20 @@ function mapMediaAsset(item) {
 }
 
 export async function listProjects({ includeUnpublished = true } = {}) {
-  return prisma.project.findMany({
+  const projects = await prisma.project.findMany({
     where: includeUnpublished ? {} : { published: true },
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
+  return projects.map(mapProject);
 }
 
 export async function getProjectBySlug(slug) {
-  return prisma.project.findUnique({ where: { slug } });
+  const project = await prisma.project.findUnique({ where: { slug } });
+  return project ? mapProject(project) : null;
 }
 
 export async function createProject(data) {
-  return prisma.project.create({
+  const project = await prisma.project.create({
     data: {
       title: data.title,
       slug: data.slug,
@@ -238,10 +241,11 @@ export async function createProject(data) {
       published: data.published !== false,
     },
   });
+  return mapProject(project);
 }
 
 export async function updateProject(id, data) {
-  return prisma.project.update({
+  const project = await prisma.project.update({
     where: { id: Number(id) },
     data: {
       title: data.title,
@@ -256,6 +260,7 @@ export async function updateProject(id, data) {
       published: Boolean(data.published),
     },
   });
+  return mapProject(project);
 }
 
 export async function deleteProject(id) {
@@ -264,14 +269,15 @@ export async function deleteProject(id) {
 
 export async function listMedia({ collection } = {}) {
   const where = collection ? { collection } : {};
-  return prisma.mediaAsset.findMany({
+  const media = await prisma.mediaAsset.findMany({
     where,
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
+  return media.map(mapMediaAsset);
 }
 
 export async function createMedia(data) {
-  return prisma.mediaAsset.create({
+  const media = await prisma.mediaAsset.create({
     data: {
       title: data.title,
       url: data.url,
@@ -287,10 +293,11 @@ export async function createMedia(data) {
       published: data.published !== false,
     },
   });
+  return mapMediaAsset(media);
 }
 
 export async function updateMedia(id, data) {
-  return prisma.mediaAsset.update({
+  const media = await prisma.mediaAsset.update({
     where: { id: Number(id) },
     data: {
       title: data.title,
@@ -306,6 +313,7 @@ export async function updateMedia(id, data) {
       published: Boolean(data.published),
     },
   });
+  return mapMediaAsset(media);
 }
 
 export async function deleteMedia(id) {
@@ -442,7 +450,7 @@ export async function reorderMedia(ids) {
   );
 }
 
-export async function getPublicContent() {
+export const getPublicContent = cache(async function getPublicContent() {
   const [siteConfig, projects, photos, moodboard] = await Promise.all([
     getSiteConfig(),
     listProjects({ includeUnpublished: false }),
@@ -461,6 +469,8 @@ export async function getPublicContent() {
       summary: project.description,
       detail: project.description,
       image: project.thumbnail,
+      thumbnail: project.thumbnail,
+      category: project.category,
       liveLink: project.liveLink || "",
       featured: project.featured,
       published: project.published,
@@ -516,7 +526,7 @@ export async function getPublicContent() {
     projects: mappedProjects,
     moodboardItems: mappedMoodboard,
   };
-}
+});
 
 export function mapMediaForAdmin(items) {
   return items.map(mapMediaAsset);

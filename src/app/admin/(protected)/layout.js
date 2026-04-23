@@ -1,7 +1,7 @@
-import { AdminShell } from "@/components/admin-cms/admin-shell";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { AdminToastProvider } from "@/components/admin-cms/toast-context";
 
 export default async function ProtectedAdminLayout({ children }) {
   const session = await getServerSession(authOptions);
@@ -9,9 +9,5 @@ export default async function ProtectedAdminLayout({ children }) {
     redirect("/admin/login");
   }
 
-  return (
-    <AdminShell title="admin" description="Portfolio CMS dashboard">
-      {children}
-    </AdminShell>
-  );
+  return <AdminToastProvider>{children}</AdminToastProvider>;
 }
