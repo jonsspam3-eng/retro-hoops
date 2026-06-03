@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sovereign Leasing Command
 
-## Getting Started
+Internal leasing operations dashboard for Sovereign Associates / Sovereign Realty NYC.
 
-First, run the development server:
+## Product scope (Phase 1 delivered)
+
+- Manual inquiry capture and lead records
+- Listing database management
+- Editable email templates with merge variables
+- Qualification scoring engine with explanation notes
+- AI assistant for summary, missing info detection, and reply drafts
+- Team management with role-aware authentication
+- Lead detail workflow (notes, status, assignment, thread history)
+- Reporting snapshot for inquiry and conversion metrics
+- Audit logging hooks for key actions
+
+## Tech stack
+
+- Next.js 16 + TypeScript + Tailwind CSS
+- Prisma + PostgreSQL schema (with in-memory fallback demo mode)
+- NextAuth credentials authentication
+- AI provider abstraction (mock default + optional OpenAI)
+
+## Local setup
+
+1. Install dependencies
+
+```bash
+npm install
+```
+
+2. Copy environment values
+
+```bash
+cp .env.example .env
+```
+
+3. Generate Prisma client
+
+```bash
+npm run db:generate
+```
+
+4. (Optional) Run migrations + seed against Postgres
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+5. Start app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo credentials
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `admin@sovereignnyc.com` / `Sovereign123!`
+- Quick demo sign-in button is available on the login page.
 
-## Learn More
+## Compliance notes
 
-To learn more about Next.js, take a look at the following resources:
+- AI output is recommendation-only and must not auto-approve/deny housing outcomes.
+- Qualification criteria should remain limited to legitimate rental factors (income, occupancy, timeline, pets, documentation readiness).
+- All sensitive actions should be captured in audit logs.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Planned roadmap
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Phase 2**: Gmail OAuth + thread sync/reply + follow-up scheduler + showing calendar integration
+- **Phase 3**: advanced analytics, source performance trends, third-party inquiry imports

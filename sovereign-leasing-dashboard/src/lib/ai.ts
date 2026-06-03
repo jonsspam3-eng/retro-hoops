@@ -56,8 +56,7 @@ class MockProvider implements AiProvider {
     ];
 
     return {
-      content: lines.join("
-"),
+      content: lines.join("\n"),
       rationale: "Template + lead context hybrid response.",
       model: "mock-rule-based-v1",
     };
