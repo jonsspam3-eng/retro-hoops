@@ -19,6 +19,8 @@ enum InquirySource {
   ZILLOW
   REALTYMX
   WEBSITE
+  DIRECT_EMAIL
+  UNKNOWN
   EMAIL
   MANUAL
   OTHER
@@ -26,6 +28,11 @@ enum InquirySource {
 
 enum LeadStatus {
   NEW
+  IMPORTED
+  NEEDS_REVIEW
+  DRAFT_CREATED
+  REPLIED
+  FOLLOW_UP_NEEDED
   NEEDS_REPLY
   NEEDS_MORE_INFO
   POSSIBLY_QUALIFIED
@@ -89,20 +96,21 @@ enum AiRecommendationType {
 }
 
 model User {
-  id             String              @id @default(cuid())
-  name           String
-  email          String              @unique
-  phone          String?
-  role           UserRole
-  passwordHash   String
-  isActive       Boolean             @default(true)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  assignedLeads  Lead[]              @relation("LeadAssignedAgent")
-  managedListing Listing[]           @relation("ListingAssignedAgent")
-  rulesCreated   QualificationRule[] @relation("RuleCreatedBy")
-  notes          LeadNote[]
-  auditLogs      AuditLog[]
+  id              String              @id @default(cuid())
+  name            String
+  email           String              @unique
+  phone           String?
+  role            UserRole
+  passwordHash    String
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  assignedLeads   Lead[]              @relation("LeadAssignedAgent")
+  managedListing  Listing[]           @relation("ListingAssignedAgent")
+  rulesCreated    QualificationRule[] @relation("RuleCreatedBy")
+  notes           LeadNote[]
+  auditLogs       AuditLog[]
+  gmailConnection GmailConnection[]
 }
 
 model Listing {
@@ -142,6 +150,8 @@ model Lead {
   clientName            String
   email                 String
   phone                 String?
+  originalSender        String?
+  inquirySubject        String?
   listingId             String?
   source                InquirySource       @default(EMAIL)
   inquiryMessage        String
@@ -154,6 +164,17 @@ model Lead {
   needsGuarantor        Boolean?
   voucherProgram        String?
   creditReadiness       String?
+  showingAvailability   String?
+  gmailMessageId        String?             @unique
+  gmailThreadId         String?
+  gmailImportedAt       DateTime?
+  sourceDetectionResult String?
+  sourceDetectionConfidence Float?
+  listingMatchConfidence Float?
+  listingMatchReason    String?
+  missingFields         Json?
+  lastAiDraft           String?
+  lastAiDraftGeneratedAt DateTime?
   responsivenessScore   Int                 @default(0)
   completenessScore     Int                 @default(0)
   status                LeadStatus          @default(NEW)
@@ -180,6 +201,7 @@ model Lead {
   @@index([status])
   @@index([source])
   @@index([assignedAgentId])
+  @@index([gmailThreadId])
 }
 
 model LeadQualification {
@@ -247,11 +269,14 @@ model EmailMessage {
   bodyText       String
   senderEmail    String
   recipientEmail String
+  gmailMessageId String?
+  gmailThreadId  String?
   sentAt         DateTime         @default(now())
   status         String           @default("SENT")
   thread         EmailThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([sentAt])
+  @@index([gmailMessageId])
 }
 
 model FollowUpSequence {
@@ -358,4 +383,24 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([entityType, entityId])
+}
+
+model GmailConnection {
+  id                    String   @id @default(cuid())
+  userId                String
+  provider              String   @default("GOOGLE")
+  email                 String?
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  scope                 String?
+  tokenType             String?
+  expiresAt             DateTime?
+  isActive              Boolean  @default(true)
+  lastError             String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([isActive])
 }

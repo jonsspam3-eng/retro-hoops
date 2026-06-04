@@ -26,8 +26,11 @@ export default async function LeadsPage({
       <div className="card">
         <h2 className="text-xl font-semibold">Leads & Inquiry Capture</h2>
         <p className="mt-1 text-sm text-[#6d6f78]">
-          Manual intake is enabled now; Gmail and platform sync adapters are scaffolded for Phase 2.
+          Manual intake plus Gmail Phase 2 import workflow is available for inquiry ingestion and review.
         </p>
+        <a href="/gmail-import" className="mt-2 inline-flex rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]">
+          Open Gmail import dashboard
+        </a>
       </div>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_360px]">

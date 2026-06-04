@@ -1,6 +1,12 @@
 export type UserRole = "ADMIN" | "AGENT" | "ASSISTANT" | "READ_ONLY";
+
 export type LeadStatus =
   | "NEW"
+  | "IMPORTED"
+  | "NEEDS_REVIEW"
+  | "DRAFT_CREATED"
+  | "REPLIED"
+  | "FOLLOW_UP_NEEDED"
   | "NEEDS_REPLY"
   | "NEEDS_MORE_INFO"
   | "POSSIBLY_QUALIFIED"
@@ -12,19 +18,33 @@ export type LeadStatus =
   | "ARCHIVED";
 
 export type ListingStatus = "ACTIVE" | "PENDING" | "RENTED" | "INACTIVE";
+
 export type InquirySource =
   | "STREETEASY"
   | "ZILLOW"
   | "REALTYMX"
   | "WEBSITE"
+  | "DIRECT_EMAIL"
+  | "UNKNOWN"
   | "EMAIL"
   | "MANUAL"
   | "OTHER";
+
+export type GmailInquirySourceFilter =
+  | "STREETEASY"
+  | "ZILLOW"
+  | "REALTYMX"
+  | "WEBSITE"
+  | "DIRECT_EMAIL"
+  | "UNKNOWN"
+  | "ALL";
+
 export type QualificationStatus =
   | "QUALIFIED"
   | "POSSIBLY_QUALIFIED"
   | "NEEDS_MORE_INFO"
   | "NOT_QUALIFIED";
+
 export type EmailMode = "AUTO_SEND" | "DRAFT_REVIEW" | "MANUAL_ONLY";
 
 export interface TeamUser {
@@ -61,6 +81,8 @@ export interface LeadRecord {
   clientName: string;
   email: string;
   phone?: string | null;
+  originalSender?: string | null;
+  inquirySubject?: string | null;
   listingId?: string | null;
   source: InquirySource;
   inquiryMessage: string;
@@ -73,6 +95,17 @@ export interface LeadRecord {
   needsGuarantor?: boolean | null;
   voucherProgram?: string | null;
   creditReadiness?: string | null;
+  showingAvailability?: string | null;
+  gmailMessageId?: string | null;
+  gmailThreadId?: string | null;
+  gmailImportedAt?: string | null;
+  sourceDetectionResult?: string | null;
+  sourceDetectionConfidence?: number | null;
+  listingMatchConfidence?: number | null;
+  listingMatchReason?: string | null;
+  missingFields?: string[];
+  lastAiDraft?: string | null;
+  lastAiDraftGeneratedAt?: string | null;
   status: LeadStatus;
   score?: number | null;
   qualificationReason?: string | null;
@@ -140,8 +173,21 @@ export interface EmailThreadMessage {
   bodyText: string;
   senderEmail: string;
   recipientEmail: string;
+  gmailMessageId?: string | null;
+  gmailThreadId?: string | null;
   sentAt: string;
   status: string;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  actorId?: string | null;
+  leadId?: string | null;
+  action: string;
+  entityType: string;
+  entityId: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface DashboardMetrics {
@@ -154,8 +200,47 @@ export interface DashboardMetrics {
   archived: number;
 }
 
+export interface GmailConnectionRecord {
+  id: string;
+  userId: string;
+  provider: string;
+  email?: string | null;
+  isActive: boolean;
+  expiresAt?: string | null;
+  lastError?: string | null;
+}
+
+export interface GmailInquiryMessage {
+  id: string;
+  threadId: string;
+  subject: string;
+  bodyText: string;
+  fromEmail: string;
+  fromName?: string;
+  receivedAt: string;
+  source: InquirySource;
+  sourceFilter: GmailInquirySourceFilter;
+  sourceConfidence: number;
+  isInquiry: boolean;
+  listingLink?: string;
+  importedLeadId?: string;
+  duplicateReason?: string;
+}
+
+export type ImportOutcome = {
+  messageId: string;
+  leadId: string;
+  duplicate: boolean;
+  duplicateReason?: string;
+};
+
 export const leadStatuses: LeadStatus[] = [
   "NEW",
+  "IMPORTED",
+  "NEEDS_REVIEW",
+  "DRAFT_CREATED",
+  "REPLIED",
+  "FOLLOW_UP_NEEDED",
   "NEEDS_REPLY",
   "NEEDS_MORE_INFO",
   "POSSIBLY_QUALIFIED",
@@ -172,7 +257,19 @@ export const inquirySources: InquirySource[] = [
   "ZILLOW",
   "REALTYMX",
   "WEBSITE",
+  "DIRECT_EMAIL",
+  "UNKNOWN",
   "EMAIL",
   "MANUAL",
   "OTHER",
+];
+
+export const gmailSourceFilters: GmailInquirySourceFilter[] = [
+  "ALL",
+  "STREETEASY",
+  "ZILLOW",
+  "REALTYMX",
+  "WEBSITE",
+  "DIRECT_EMAIL",
+  "UNKNOWN",
 ];

@@ -3,7 +3,6 @@
 import { writeAuditLog } from "@/lib/audit";
 import {
   addLeadNote,
-  addOutboundMessage,
   assignLead,
   createLead,
   createListing,
@@ -11,10 +10,18 @@ import {
   createTeamMember,
   createTemplate,
   evaluateLead,
+  getLeadById,
+  listListings,
+  saveLeadAiDraft,
+  updateLeadListing,
   updateLeadStatus,
 } from "@/lib/repository";
 import { getAppSession } from "@/lib/auth";
-import { createGmailDraftPlaceholder, sendGmailReplyPlaceholder } from "@/lib/gmail";
+import {
+  createGmailDraftFromLead,
+  importSelectedGmailMessages,
+} from "@/lib/gmail";
+import { generateAiReplyDraft } from "@/lib/ai";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
@@ -74,7 +81,7 @@ export async function createListingAction(formData: FormData) {
     baths: Number(requiredString(formData.get("baths"), "Baths")),
     neighborhood: requiredString(formData.get("neighborhood"), "Neighborhood"),
     petPolicy: String(formData.get("petPolicy") ?? "") || undefined,
-    status: requiredString(formData.get("status"), "Status") as any,
+    status: requiredString(formData.get("status"), "Status") as never,
   });
 
   await writeAuditLog({
@@ -95,7 +102,7 @@ export async function createTemplateAction(formData: FormData) {
   const template = await createTemplate({
     name: requiredString(formData.get("name"), "Template name"),
     category: requiredString(formData.get("category"), "Category"),
-    mode: requiredString(formData.get("mode"), "Mode") as any,
+    mode: requiredString(formData.get("mode"), "Mode") as never,
     subject: requiredString(formData.get("subject"), "Subject"),
     body: requiredString(formData.get("body"), "Body"),
   });
@@ -145,7 +152,7 @@ export async function createTeamMemberAction(formData: FormData) {
   const user = await createTeamMember({
     name: requiredString(formData.get("name"), "Name"),
     email: requiredString(formData.get("email"), "Email"),
-    role: requiredString(formData.get("role"), "Role") as any,
+    role: requiredString(formData.get("role"), "Role") as never,
     passwordHash,
   });
 
@@ -186,7 +193,7 @@ export async function updateLeadStatusAction(formData: FormData) {
   assertEditor(session?.user?.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
-  const status = requiredString(formData.get("status"), "Status") as any;
+  const status = requiredString(formData.get("status"), "Status") as never;
   await updateLeadStatus(leadId, status);
 
   await writeAuditLog({
@@ -224,6 +231,27 @@ export async function assignLeadAction(formData: FormData) {
   revalidatePath("/leads");
 }
 
+export async function assignLeadListingAction(formData: FormData) {
+  const session = await getAppSession();
+  assertEditor(session?.user?.role);
+
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const listingId = String(formData.get("listingId") ?? "").trim() || null;
+  await updateLeadListing(leadId, listingId);
+
+  await writeAuditLog({
+    actorId: session?.user?.id,
+    leadId,
+    action: "LEAD_LISTING_UPDATED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { listingId },
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
+}
+
 export async function evaluateLeadAction(formData: FormData) {
   const session = await getAppSession();
   assertEditor(session?.user?.role);
@@ -248,69 +276,67 @@ export async function evaluateLeadAction(formData: FormData) {
   revalidatePath("/leads");
 }
 
-export async function draftLeadReplyAction(formData: FormData) {
+export async function importGmailMessagesAction(formData: FormData) {
+  const session = await getAppSession();
+  assertEditor(session?.user?.role);
+
+  const messageIds = formData
+    .getAll("messageIds")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+
+  await importSelectedGmailMessages({
+    userId: session?.user?.id ?? "user_admin",
+    actorId: session?.user?.id,
+    messageIds,
+  });
+
+  revalidatePath("/gmail-import");
+  revalidatePath("/leads");
+  revalidatePath("/dashboard");
+}
+
+export async function createGmailDraftForLeadAction(formData: FormData) {
   const session = await getAppSession();
   assertEditor(session?.user?.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
-  const subject = requiredString(formData.get("subject"), "Subject");
-  const body = requiredString(formData.get("body"), "Body");
-
-  await createGmailDraftPlaceholder({
-    to: requiredString(formData.get("to"), "Recipient"),
-    subject,
-    body,
-  });
-
-  await addOutboundMessage({
+  await createGmailDraftFromLead({
     leadId,
-    subject,
-    bodyText: body,
-    senderEmail: session?.user?.email ?? "leasing@sovereignnyc.com",
-    recipientEmail: requiredString(formData.get("to"), "Recipient"),
-    status: "DRAFT",
-  });
-
-  await writeAuditLog({
+    userId: session?.user?.id ?? "user_admin",
     actorId: session?.user?.id,
-    leadId,
-    action: "EMAIL_DRAFT_CREATED",
-    entityType: "EMAIL",
-    entityId: leadId,
+    templateId: String(formData.get("templateId") ?? "") || undefined,
+    showingTimes: String(formData.get("showingTimes") ?? "") || undefined,
+    applicationLink: String(formData.get("applicationLink") ?? "") || undefined,
+    agentName: session?.user?.name ?? "Sovereign Leasing Team",
   });
 
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
 }
 
-export async function sendLeadReplyAction(formData: FormData) {
+export async function regenerateAiDraftAction(formData: FormData) {
   const session = await getAppSession();
   assertEditor(session?.user?.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
-  const subject = requiredString(formData.get("subject"), "Subject");
-  const body = requiredString(formData.get("body"), "Body");
+  const lead = await getLeadById(leadId);
+  if (!lead) {
+    throw new Error("Lead not found");
+  }
 
-  await sendGmailReplyPlaceholder({
-    to: requiredString(formData.get("to"), "Recipient"),
-    subject,
-    body,
-  });
-
-  await addOutboundMessage({
-    leadId,
-    subject,
-    bodyText: body,
-    senderEmail: session?.user?.email ?? "leasing@sovereignnyc.com",
-    recipientEmail: requiredString(formData.get("to"), "Recipient"),
-    status: "SENT",
-  });
+  const listings = await listListings();
+  const listing = listings.find((item) => item.id === lead.listingId);
+  const aiDraft = await generateAiReplyDraft({ lead, listing });
+  await saveLeadAiDraft(leadId, aiDraft.content);
 
   await writeAuditLog({
     actorId: session?.user?.id,
     leadId,
-    action: "EMAIL_SENT",
-    entityType: "EMAIL",
+    action: "AI_DRAFT_REGENERATED",
+    entityType: "LEAD",
     entityId: leadId,
+    metadata: { model: aiDraft.model },
   });
 
   revalidatePath(`/leads/${leadId}`);

@@ -1,15 +1,18 @@
 import {
   addLeadNoteAction,
   assignLeadAction,
-  draftLeadReplyAction,
+  assignLeadListingAction,
+  createGmailDraftForLeadAction,
   evaluateLeadAction,
-  sendLeadReplyAction,
+  regenerateAiDraftAction,
   updateLeadStatusAction,
 } from "@/lib/actions";
-import { generateAiReplyDraft, generateAiSummary, generateMissingInfoAnalysis } from "@/lib/ai";
-import { renderTemplate } from "@/lib/template-renderer";
+import { generateAiSummary, generateMissingInfoAnalysis } from "@/lib/ai";
+import { CopyDraftButton } from "@/components/copy-draft-button";
+import { StatusPill } from "@/components/status-pill";
 import {
   getLeadById,
+  listLeadActivityLog,
   listLeadMessages,
   listLeadNotes,
   listLeadQualifications,
@@ -17,7 +20,6 @@ import {
   listTeamMembers,
   listTemplates,
 } from "@/lib/repository";
-import { StatusPill } from "@/components/status-pill";
 import { leadStatuses } from "@/lib/types";
 import { notFound } from "next/navigation";
 
@@ -25,7 +27,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [lead, listings, notes, history, templates, team, qualifications] = await Promise.all([
+  const [lead, listings, notes, history, templates, team, qualifications, activity] = await Promise.all([
     getLeadById(id),
     listListings(),
     listLeadNotes(id),
@@ -33,6 +35,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     listTemplates(),
     listTeamMembers(),
     listLeadQualifications(id),
+    listLeadActivityLog(id),
   ]);
 
   if (!lead) {
@@ -42,19 +45,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const listing = listings.find((item) => item.id === lead.listingId);
   const aiSummary = await generateAiSummary({ lead, listing });
   const aiMissing = await generateMissingInfoAnalysis({ lead, listing });
-  const aiReply = await generateAiReplyDraft({ lead, listing });
-  const defaultTemplate = templates[0];
-  const mergedReply = defaultTemplate
-    ? renderTemplate(defaultTemplate.body, {
-        client_name: lead.clientName,
-        listing_address: listing?.address ?? "the requested listing",
-        apartment_number: listing?.apartmentNumber ?? "",
-        rent: listing?.rent ?? "TBD",
-        agent_name: "Sovereign Leasing Team",
-        showing_times: "Tue 5:30 PM or Thu 6:00 PM",
-        application_link: "https://example.com/apply",
-      })
-    : aiReply.content;
+  const activeTemplate = templates[0];
+  const draftBody = lead.lastAiDraft ?? aiMissing.content;
 
   return (
     <div className="space-y-4">
@@ -64,29 +56,62 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <h2 className="text-xl font-semibold">{lead.clientName}</h2>
             <p className="text-sm text-[#6d6f78]">{lead.email} · {lead.phone ?? "No phone provided"}</p>
           </div>
-          <StatusPill label={lead.status} />
+          <div className="flex items-center gap-2">
+            <StatusPill label={lead.status} />
+            <span className="rounded-full bg-[#fff0d8] px-2.5 py-1 text-xs font-semibold text-[#7c4a08]">
+              {lead.status === "DRAFT_CREATED" ? "Draft Created — Human Review Required" : "Human Review Required"}
+            </span>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]">
         <section className="space-y-4">
           <div className="card">
-            <h3 className="text-lg font-semibold">Inquiry details</h3>
-            <p className="mt-2 text-sm leading-relaxed">{lead.inquiryMessage}</p>
+            <h3 className="text-lg font-semibold">Original imported email</h3>
+            <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">{lead.inquiryMessage}</p>
             <div className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
               <p><span className="font-semibold">Source:</span> {lead.source}</p>
-              <p><span className="font-semibold">Listing:</span> {listing ? `${listing.address} ${listing.apartmentNumber}` : "Unmatched"}</p>
-              <p><span className="font-semibold">Move-in:</span> {lead.desiredMoveInDate ? new Date(lead.desiredMoveInDate).toLocaleDateString() : "Not provided"}</p>
-              <p><span className="font-semibold">Budget:</span> {lead.budget ? `$${lead.budget.toLocaleString()}` : "Not provided"}</p>
-              <p><span className="font-semibold">Income:</span> {lead.annualIncome ? `$${lead.annualIncome.toLocaleString()}` : "Not provided"}</p>
-              <p><span className="font-semibold">Occupants:</span> {lead.occupants ?? "Not provided"}</p>
-              <p><span className="font-semibold">Pets:</span> {lead.pets ?? "Not provided"}</p>
-              <p><span className="font-semibold">Guarantor:</span> {lead.needsGuarantor === null || lead.needsGuarantor === undefined ? "Unknown" : lead.needsGuarantor ? "Yes" : "No"}</p>
+              <p><span className="font-semibold">Subject:</span> {lead.inquirySubject ?? "Not captured"}</p>
+              <p><span className="font-semibold">Original sender:</span> {lead.originalSender ?? "Not captured"}</p>
+              <p><span className="font-semibold">Gmail message ID:</span> {lead.gmailMessageId ?? "N/A"}</p>
+              <p><span className="font-semibold">Gmail thread ID:</span> {lead.gmailThreadId ?? "N/A"}</p>
+              <p><span className="font-semibold">Imported at:</span> {lead.gmailImportedAt ? new Date(lead.gmailImportedAt).toLocaleString() : "N/A"}</p>
+              <p><span className="font-semibold">Source detection:</span> {lead.sourceDetectionResult ?? "Not detected"}</p>
+              <p><span className="font-semibold">Detection confidence:</span> {lead.sourceDetectionConfidence ? `${Math.round(lead.sourceDetectionConfidence * 100)}%` : "N/A"}</p>
+              <p><span className="font-semibold">Listing match confidence:</span> {lead.listingMatchConfidence ? `${Math.round(lead.listingMatchConfidence * 100)}%` : "Unmatched"}</p>
+              <p><span className="font-semibold">Listing match reason:</span> {lead.listingMatchReason ?? "Manual assignment required"}</p>
+              <p><span className="font-semibold">Move-in:</span> {lead.desiredMoveInDate ? new Date(lead.desiredMoveInDate).toLocaleDateString() : "Missing"}</p>
+              <p><span className="font-semibold">Budget:</span> {lead.budget ? `$${lead.budget.toLocaleString()}` : "Missing"}</p>
+              <p><span className="font-semibold">Occupants:</span> {lead.occupants ?? "Missing"}</p>
+              <p><span className="font-semibold">Pets:</span> {lead.pets ?? "Missing"}</p>
             </div>
+            <p className="mt-3 text-xs text-[#6d6f78]">
+              Missing parsed fields: {(lead.missingFields ?? []).length > 0 ? lead.missingFields?.join(", ") : "None"}
+            </p>
           </div>
 
           <div className="card">
-            <h3 className="text-lg font-semibold">Qualification</h3>
+            <h3 className="text-lg font-semibold">Listing assignment</h3>
+            <p className="mt-1 text-sm text-[#6d6f78]">
+              Current listing: {listing ? `${listing.address} ${listing.apartmentNumber}` : "Unmatched"}
+            </p>
+            <form action={assignLeadListingAction} className="mt-3 flex flex-wrap items-center gap-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+              <select name="listingId" defaultValue={lead.listingId ?? ""}>
+                <option value="">Unmatched listing</option>
+                {listings.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.address} {row.apartmentNumber}
+                  </option>
+                ))}
+              </select>
+              <button type="submit">Save listing assignment</button>
+            </form>
+          </div>
+
+          <div className="card">
+            <h3 className="text-lg font-semibold">Qualification & workflow status</h3>
             <p className="mt-1 text-sm text-[#6d6f78]">Score: {lead.score ?? "Not scored"}</p>
             <p className="mt-2 text-sm">{lead.qualificationReason ?? "No evaluation notes available yet."}</p>
             <p className="mt-2 text-sm font-medium">Recommended next action: {lead.recommendedNextAction ?? "Run qualification to generate recommendation."}</p>
@@ -126,7 +151,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                     {message.direction} · {new Date(message.sentAt).toLocaleString()} · {message.status}
                   </p>
                   <p className="mt-1 text-sm font-semibold">{message.subject}</p>
-                  <p className="mt-1 text-sm whitespace-pre-wrap">{message.bodyText}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{message.bodyText}</p>
                 </div>
               ))}
             </div>
@@ -181,23 +206,48 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </div>
           </div>
 
-          <div className="card">
-            <h3 className="text-lg font-semibold">Draft / send reply</h3>
-            <form action={draftLeadReplyAction} className="space-y-2">
+          <div className="card space-y-3">
+            <h3 className="text-lg font-semibold">Gmail draft workflow</h3>
+            <p className="text-xs text-[#6d6f78]">AI-generated draft · Review before sending · Do not rely on AI for final applicant approval.</p>
+
+            <form action={regenerateAiDraftAction} className="space-y-2">
               <input type="hidden" name="leadId" value={lead.id} />
-              <input type="hidden" name="to" value={lead.email} />
-              <input name="subject" defaultValue={defaultTemplate?.subject ?? `Re: Inquiry from ${lead.clientName}`} required />
-              <textarea name="body" rows={8} defaultValue={mergedReply} required />
-              <button type="submit">Save draft (placeholder Gmail)</button>
+              <button type="submit">Regenerate AI Draft</button>
             </form>
 
-            <form action={sendLeadReplyAction} className="mt-2 space-y-2">
+            <form action={createGmailDraftForLeadAction} className="space-y-2">
               <input type="hidden" name="leadId" value={lead.id} />
-              <input type="hidden" name="to" value={lead.email} />
-              <input name="subject" defaultValue={`Re: Inquiry from ${lead.clientName}`} required />
-              <textarea name="body" rows={6} defaultValue={aiReply.content} required />
-              <button type="submit">Send now (placeholder Gmail)</button>
+              <select name="templateId" defaultValue={activeTemplate?.id ?? ""}>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+              <input name="showingTimes" placeholder="Showing times (e.g. Tue 5:30pm, Thu 6:00pm)" defaultValue="Tue 5:30pm, Thu 6:00pm" />
+              <input name="applicationLink" placeholder="Application link" defaultValue="https://example.com/application" />
+              <button type="submit">Create Gmail Draft</button>
             </form>
+
+            <div className="rounded-xl border border-[#ece8e3] bg-[#f8f6f3] p-3 text-sm">
+              <p className="font-semibold">Latest draft preview</p>
+              <p className="mt-2 whitespace-pre-wrap">{draftBody}</p>
+              <div className="mt-3">
+                <CopyDraftButton text={draftBody} />
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="text-lg font-semibold">Activity log</h3>
+            <div className="mt-3 space-y-2 text-sm">
+              {activity.map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-[#ece8e3] p-2">
+                  <p className="font-semibold">{entry.action.replaceAll("_", " ")}</p>
+                  <p className="text-xs text-[#6d6f78]">{new Date(entry.createdAt).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       </div>

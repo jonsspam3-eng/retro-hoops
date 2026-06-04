@@ -3,13 +3,17 @@ import {
   seedLeadNotes,
   seedLeads,
   seedListings,
+  seedMockGmailMessages,
   seedQualificationRules,
   seedQualifications,
   seedTemplates,
   seedUsers,
 } from "@/lib/seed-data";
 import type {
+  AuditLogRecord,
   EmailTemplateRecord,
+  GmailConnectionRecord,
+  GmailInquiryMessage,
   LeadNoteRecord,
   LeadQualificationRecord,
   LeadRecord,
@@ -27,14 +31,22 @@ type InMemoryStore = {
   rules: QualificationRuleRecord[];
   notes: LeadNoteRecord[];
   messages: typeof seedEmailMessages;
-  auditLogs: Array<{
+  auditLogs: AuditLogRecord[];
+  gmailConnections: Array<
+    GmailConnectionRecord & {
+      accessTokenEncrypted: string;
+      refreshTokenEncrypted?: string | null;
+      scope?: string | null;
+      tokenType?: string | null;
+    }
+  >;
+  mockGmailMessages: GmailInquiryMessage[];
+  mockDrafts: Array<{
     id: string;
-    actorId?: string | null;
-    leadId?: string | null;
-    action: string;
-    entityType: string;
-    entityId: string;
-    metadata?: Record<string, unknown>;
+    threadId?: string;
+    to: string;
+    subject: string;
+    body: string;
     createdAt: string;
   }>;
 };
@@ -56,6 +68,9 @@ function makeStore(): InMemoryStore {
     notes: clone(seedLeadNotes),
     messages: clone(seedEmailMessages),
     auditLogs: [],
+    gmailConnections: [],
+    mockGmailMessages: clone(seedMockGmailMessages),
+    mockDrafts: [],
   };
 }
 

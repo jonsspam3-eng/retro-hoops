@@ -13,6 +13,7 @@ type Item = {
 const navItems: Item[] = [
   { href: "/dashboard", label: "Dashboard", description: "Operational queues" },
   { href: "/leads", label: "Leads", description: "Inquiry triage" },
+  { href: "/gmail-import", label: "Gmail Import", description: "Inbox ingestion" },
   { href: "/listings", label: "Listings", description: "Inventory database" },
   { href: "/templates", label: "Templates", description: "Email responses" },
   { href: "/rules", label: "Rules", description: "Qualification engine" },

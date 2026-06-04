@@ -2,6 +2,7 @@ import { getFallbackStore, makeId } from "@/lib/fallback-store";
 import { evaluateLeadQualification, qualificationStatusToLeadStatus } from "@/lib/rules-engine";
 import { prisma } from "@/lib/prisma";
 import type {
+  AuditLogRecord,
   DashboardMetrics,
   EmailTemplateRecord,
   LeadNoteRecord,
@@ -17,7 +18,37 @@ function shouldUseFallback(): boolean {
   return !process.env.DATABASE_URL;
 }
 
-function mapListing(listing: any): ListingRecord {
+function toIso(value?: Date | string | null): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function toDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function mapListing(listing: {
+  id: string;
+  address: string;
+  apartmentNumber: string;
+  rent: number;
+  beds: number;
+  baths: number;
+  neighborhood: string;
+  availabilityDate?: Date | string | null;
+  agentId?: string | null;
+  showingInstructions?: string | null;
+  petPolicy?: string | null;
+  incomeRequirementX: number;
+  guarantorRequirementX: number;
+  brokerFeeStatus?: string | null;
+  platformLinks?: unknown;
+  status: ListingRecord["status"];
+}): ListingRecord {
   return {
     id: listing.id,
     address: listing.address,
@@ -26,28 +57,70 @@ function mapListing(listing: any): ListingRecord {
     beds: listing.beds,
     baths: listing.baths,
     neighborhood: listing.neighborhood,
-    availabilityDate: listing.availabilityDate?.toISOString?.() ?? listing.availabilityDate ?? null,
+    availabilityDate: toIso(listing.availabilityDate),
     agentId: listing.agentId,
     showingInstructions: listing.showingInstructions,
     petPolicy: listing.petPolicy,
     incomeRequirementX: listing.incomeRequirementX,
     guarantorRequirementX: listing.guarantorRequirementX,
     brokerFeeStatus: listing.brokerFeeStatus,
-    platformLinks: listing.platformLinks ?? undefined,
+    platformLinks: (listing.platformLinks as Record<string, string> | undefined) ?? undefined,
     status: listing.status,
   };
 }
 
-function mapLead(lead: any): LeadRecord {
+function mapLead(lead: {
+  id: string;
+  clientName: string;
+  email: string;
+  phone?: string | null;
+  originalSender?: string | null;
+  inquirySubject?: string | null;
+  listingId?: string | null;
+  source: LeadRecord["source"];
+  inquiryMessage: string;
+  desiredMoveInDate?: Date | string | null;
+  budget?: number | null;
+  pets?: string | null;
+  occupants?: number | null;
+  annualIncome?: number | null;
+  employmentDetails?: string | null;
+  needsGuarantor?: boolean | null;
+  voucherProgram?: string | null;
+  creditReadiness?: string | null;
+  showingAvailability?: string | null;
+  gmailMessageId?: string | null;
+  gmailThreadId?: string | null;
+  gmailImportedAt?: Date | string | null;
+  sourceDetectionResult?: string | null;
+  sourceDetectionConfidence?: number | null;
+  listingMatchConfidence?: number | null;
+  listingMatchReason?: string | null;
+  missingFields?: unknown;
+  lastAiDraft?: string | null;
+  lastAiDraftGeneratedAt?: Date | string | null;
+  status: LeadStatus;
+  score?: number | null;
+  qualificationReason?: string | null;
+  responsivenessScore: number;
+  completenessScore: number;
+  recommendedNextAction?: string | null;
+  assignedAgentId?: string | null;
+  followUpDate?: Date | string | null;
+  receivedAt: Date | string;
+  parsedFields?: unknown;
+}): LeadRecord {
   return {
     id: lead.id,
     clientName: lead.clientName,
     email: lead.email,
     phone: lead.phone,
+    originalSender: lead.originalSender,
+    inquirySubject: lead.inquirySubject,
     listingId: lead.listingId,
     source: lead.source,
     inquiryMessage: lead.inquiryMessage,
-    desiredMoveInDate: lead.desiredMoveInDate?.toISOString?.() ?? lead.desiredMoveInDate ?? null,
+    desiredMoveInDate: toIso(lead.desiredMoveInDate),
     budget: lead.budget,
     pets: lead.pets,
     occupants: lead.occupants,
@@ -56,6 +129,17 @@ function mapLead(lead: any): LeadRecord {
     needsGuarantor: lead.needsGuarantor,
     voucherProgram: lead.voucherProgram,
     creditReadiness: lead.creditReadiness,
+    showingAvailability: lead.showingAvailability,
+    gmailMessageId: lead.gmailMessageId,
+    gmailThreadId: lead.gmailThreadId,
+    gmailImportedAt: toIso(lead.gmailImportedAt),
+    sourceDetectionResult: lead.sourceDetectionResult,
+    sourceDetectionConfidence: lead.sourceDetectionConfidence,
+    listingMatchConfidence: lead.listingMatchConfidence,
+    listingMatchReason: lead.listingMatchReason,
+    missingFields: (lead.missingFields as string[] | undefined) ?? [],
+    lastAiDraft: lead.lastAiDraft,
+    lastAiDraftGeneratedAt: toIso(lead.lastAiDraftGeneratedAt),
     status: lead.status,
     score: lead.score,
     qualificationReason: lead.qualificationReason,
@@ -63,9 +147,9 @@ function mapLead(lead: any): LeadRecord {
     completenessScore: lead.completenessScore,
     recommendedNextAction: lead.recommendedNextAction,
     assignedAgentId: lead.assignedAgentId,
-    followUpDate: lead.followUpDate?.toISOString?.() ?? lead.followUpDate ?? null,
-    receivedAt: lead.receivedAt?.toISOString?.() ?? lead.receivedAt,
-    parsedFields: lead.parsedFields ?? undefined,
+    followUpDate: toIso(lead.followUpDate),
+    receivedAt: toIso(lead.receivedAt) ?? new Date().toISOString(),
+    parsedFields: (lead.parsedFields as Record<string, unknown> | undefined) ?? undefined,
   };
 }
 
@@ -79,6 +163,10 @@ async function runWithFallback<T>(dbFn: () => Promise<T>, fallbackFn: () => T | 
   } catch {
     return fallbackFn();
   }
+}
+
+export function isFallbackMode(): boolean {
+  return shouldUseFallback();
 }
 
 export async function listTeamMembers(): Promise<TeamUser[]> {
@@ -103,7 +191,7 @@ export async function listListings(): Promise<ListingRecord[]> {
   return runWithFallback(
     async () => {
       const rows = await prisma.listing.findMany({ orderBy: { createdAt: "desc" } });
-      return rows.map(mapListing);
+      return rows.map((row) => mapListing(row));
     },
     () => getFallbackStore().listings,
   );
@@ -119,12 +207,12 @@ export async function listLeads(filters?: {
       const rows = await prisma.lead.findMany({
         where: {
           status: filters?.status,
-          source: filters?.source as any,
+          source: filters?.source as never,
           listingId: filters?.listingId,
         },
         orderBy: { receivedAt: "desc" },
       });
-      return rows.map(mapLead);
+      return rows.map((row) => mapLead(row));
     },
     () => {
       const store = getFallbackStore();
@@ -143,6 +231,41 @@ export async function getLeadById(id: string): Promise<LeadRecord | null> {
       return row ? mapLead(row) : null;
     },
     () => getFallbackStore().leads.find((lead) => lead.id === id) ?? null,
+  );
+}
+
+export async function findLeadByGmailIdentifiers(input: {
+  gmailMessageId?: string;
+  gmailThreadId?: string;
+}): Promise<LeadRecord | null> {
+  return runWithFallback(
+    async () => {
+      if (input.gmailMessageId) {
+        const byMessage = await prisma.lead.findUnique({ where: { gmailMessageId: input.gmailMessageId } });
+        if (byMessage) return mapLead(byMessage);
+      }
+
+      if (input.gmailThreadId) {
+        const byThread = await prisma.lead.findFirst({
+          where: { gmailThreadId: input.gmailThreadId },
+          orderBy: { receivedAt: "desc" },
+        });
+        if (byThread) return mapLead(byThread);
+      }
+
+      return null;
+    },
+    () => {
+      const store = getFallbackStore();
+      if (input.gmailMessageId) {
+        const byMessage = store.leads.find((lead) => lead.gmailMessageId === input.gmailMessageId);
+        if (byMessage) return byMessage;
+      }
+      if (input.gmailThreadId) {
+        return store.leads.find((lead) => lead.gmailThreadId === input.gmailThreadId) ?? null;
+      }
+      return null;
+    },
   );
 }
 
@@ -184,12 +307,40 @@ export async function listLeadMessages(leadId: string) {
           bodyText: message.bodyText,
           senderEmail: message.senderEmail,
           recipientEmail: message.recipientEmail,
+          gmailMessageId: message.gmailMessageId,
+          gmailThreadId: message.gmailThreadId,
           sentAt: message.sentAt.toISOString(),
           status: message.status,
         })) ?? []
       );
     },
     () => getFallbackStore().messages.filter((message) => message.leadId === leadId),
+  );
+}
+
+export async function listLeadActivityLog(leadId: string): Promise<AuditLogRecord[]> {
+  return runWithFallback(
+    async () => {
+      const rows = await prisma.auditLog.findMany({
+        where: { leadId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+      return rows.map((row) => ({
+        id: row.id,
+        actorId: row.actorId,
+        leadId: row.leadId,
+        action: row.action,
+        entityType: row.entityType,
+        entityId: row.entityId,
+        metadata: (row.metadata as Record<string, unknown> | undefined) ?? undefined,
+        createdAt: row.createdAt.toISOString(),
+      }));
+    },
+    () =>
+      getFallbackStore()
+        .auditLogs.filter((log) => log.leadId === leadId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   );
 }
 
@@ -260,39 +411,79 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const leads = await listLeads();
 
   return {
-    newInquiries: leads.filter((lead) => lead.status === "NEW").length,
-    needsReply: leads.filter((lead) => lead.status === "NEEDS_REPLY" || lead.status === "NEEDS_MORE_INFO").length,
+    newInquiries: leads.filter((lead) => lead.status === "NEW" || lead.status === "IMPORTED").length,
+    needsReply: leads.filter((lead) => ["NEEDS_REPLY", "NEEDS_MORE_INFO", "NEEDS_REVIEW"].includes(lead.status)).length,
     qualifiedLeads: leads.filter((lead) => lead.status === "QUALIFIED").length,
-    followUps: leads.filter((lead) => lead.status === "FOLLOW_UP").length,
+    followUps: leads.filter((lead) => ["FOLLOW_UP", "FOLLOW_UP_NEEDED"].includes(lead.status)).length,
     showingRequested: leads.filter((lead) => lead.status === "SHOWING_REQUESTED").length,
     applicationRequested: leads.filter((lead) => lead.status === "APPLICATION_REQUESTED").length,
-    archived: leads.filter((lead) => lead.status === "ARCHIVED" || lead.status === "NOT_QUALIFIED").length,
+    archived: leads.filter((lead) => ["ARCHIVED", "NOT_QUALIFIED"].includes(lead.status)).length,
   };
-}
-
-export function isFallbackMode(): boolean {
-  return shouldUseFallback();
 }
 
 export async function createLead(input: {
   clientName: string;
   email: string;
-  source: string;
+  source: LeadRecord["source"] | string;
   inquiryMessage: string;
-  listingId?: string;
+  listingId?: string | null;
+  phone?: string | null;
+  originalSender?: string | null;
+  inquirySubject?: string | null;
+  desiredMoveInDate?: string | null;
+  budget?: number | null;
+  pets?: string | null;
+  occupants?: number | null;
+  annualIncome?: number | null;
+  employmentDetails?: string | null;
+  needsGuarantor?: boolean | null;
+  voucherProgram?: string | null;
+  showingAvailability?: string | null;
+  gmailMessageId?: string | null;
+  gmailThreadId?: string | null;
+  gmailImportedAt?: string | null;
+  sourceDetectionResult?: string | null;
+  sourceDetectionConfidence?: number | null;
+  listingMatchConfidence?: number | null;
+  listingMatchReason?: string | null;
+  missingFields?: string[];
+  parsedFields?: Record<string, unknown>;
+  status?: LeadStatus;
 }) {
+  const status = input.status ?? "NEW";
   return runWithFallback(
     async () => {
       const row = await prisma.lead.create({
         data: {
           clientName: input.clientName,
           email: input.email,
-          source: input.source as any,
+          phone: input.phone,
+          originalSender: input.originalSender,
+          inquirySubject: input.inquirySubject,
+          source: input.source as never,
           inquiryMessage: input.inquiryMessage,
           listingId: input.listingId || null,
-          status: "NEW",
+          desiredMoveInDate: toDate(input.desiredMoveInDate),
+          budget: input.budget,
+          pets: input.pets,
+          occupants: input.occupants,
+          annualIncome: input.annualIncome,
+          employmentDetails: input.employmentDetails,
+          needsGuarantor: input.needsGuarantor,
+          voucherProgram: input.voucherProgram,
+          showingAvailability: input.showingAvailability,
+          gmailMessageId: input.gmailMessageId,
+          gmailThreadId: input.gmailThreadId,
+          gmailImportedAt: toDate(input.gmailImportedAt),
+          sourceDetectionResult: input.sourceDetectionResult,
+          sourceDetectionConfidence: input.sourceDetectionConfidence,
+          listingMatchConfidence: input.listingMatchConfidence,
+          listingMatchReason: input.listingMatchReason,
+          missingFields: input.missingFields,
+          status: status as never,
           responsivenessScore: 0,
           completenessScore: 0,
+          parsedFields: input.parsedFields,
         },
       });
       return mapLead(row);
@@ -303,13 +494,34 @@ export async function createLead(input: {
         id: makeId("lead"),
         clientName: input.clientName,
         email: input.email,
+        phone: input.phone,
+        originalSender: input.originalSender,
+        inquirySubject: input.inquirySubject,
         source: (input.source as LeadRecord["source"]) || "MANUAL",
         inquiryMessage: input.inquiryMessage,
         listingId: input.listingId || null,
-        status: "NEW",
+        desiredMoveInDate: input.desiredMoveInDate,
+        budget: input.budget,
+        pets: input.pets,
+        occupants: input.occupants,
+        annualIncome: input.annualIncome,
+        employmentDetails: input.employmentDetails,
+        needsGuarantor: input.needsGuarantor,
+        voucherProgram: input.voucherProgram,
+        showingAvailability: input.showingAvailability,
+        gmailMessageId: input.gmailMessageId,
+        gmailThreadId: input.gmailThreadId,
+        gmailImportedAt: input.gmailImportedAt,
+        sourceDetectionResult: input.sourceDetectionResult,
+        sourceDetectionConfidence: input.sourceDetectionConfidence,
+        listingMatchConfidence: input.listingMatchConfidence,
+        listingMatchReason: input.listingMatchReason,
+        missingFields: input.missingFields ?? [],
+        status,
         responsivenessScore: 0,
         completenessScore: 0,
         receivedAt: new Date().toISOString(),
+        parsedFields: input.parsedFields,
       };
       store.leads.unshift(lead);
       return lead;
@@ -338,7 +550,7 @@ export async function createListing(input: {
           baths: input.baths,
           neighborhood: input.neighborhood,
           petPolicy: input.petPolicy,
-          status: input.status as any,
+          status: input.status as never,
         },
       });
       return mapListing(row);
@@ -377,7 +589,7 @@ export async function createTemplate(input: {
         data: {
           name: input.name,
           category: input.category,
-          mode: input.mode as any,
+          mode: input.mode as never,
           subject: input.subject,
           body: input.body,
           isActive: true,
@@ -470,7 +682,7 @@ export async function createTeamMember(input: {
         data: {
           name: input.name,
           email: input.email,
-          role: input.role as any,
+          role: input.role as never,
           passwordHash: input.passwordHash,
         },
       });
@@ -506,7 +718,7 @@ export async function updateLeadStatus(leadId: string, status: LeadStatus) {
       const row = await prisma.lead.update({
         where: { id: leadId },
         data: {
-          status: status as any,
+          status: status as never,
         },
       });
       return mapLead(row);
@@ -516,6 +728,48 @@ export async function updateLeadStatus(leadId: string, status: LeadStatus) {
       const lead = store.leads.find((item) => item.id === leadId);
       if (!lead) return null;
       lead.status = status;
+      return lead;
+    },
+  );
+}
+
+export async function updateLeadListing(leadId: string, listingId: string | null) {
+  return runWithFallback(
+    async () => {
+      const row = await prisma.lead.update({
+        where: { id: leadId },
+        data: { listingId },
+      });
+      return mapLead(row);
+    },
+    () => {
+      const store = getFallbackStore();
+      const lead = store.leads.find((item) => item.id === leadId);
+      if (!lead) return null;
+      lead.listingId = listingId;
+      return lead;
+    },
+  );
+}
+
+export async function saveLeadAiDraft(leadId: string, draftBody: string) {
+  return runWithFallback(
+    async () => {
+      const row = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          lastAiDraft: draftBody,
+          lastAiDraftGeneratedAt: new Date(),
+        },
+      });
+      return mapLead(row);
+    },
+    () => {
+      const store = getFallbackStore();
+      const lead = store.leads.find((item) => item.id === leadId);
+      if (!lead) return null;
+      lead.lastAiDraft = draftBody;
+      lead.lastAiDraftGeneratedAt = new Date().toISOString();
       return lead;
     },
   );
@@ -580,6 +834,8 @@ export async function addOutboundMessage(input: {
   senderEmail: string;
   recipientEmail: string;
   status?: string;
+  gmailMessageId?: string;
+  gmailThreadId?: string;
 }) {
   return runWithFallback(
     async () => {
@@ -589,7 +845,8 @@ export async function addOutboundMessage(input: {
           data: {
             leadId: input.leadId,
             subject: input.subject,
-            provider: "MANUAL",
+            provider: input.gmailThreadId ? "GMAIL" : "MANUAL",
+            externalThreadId: input.gmailThreadId,
           },
         });
       }
@@ -602,6 +859,8 @@ export async function addOutboundMessage(input: {
           bodyText: input.bodyText,
           senderEmail: input.senderEmail,
           recipientEmail: input.recipientEmail,
+          gmailMessageId: input.gmailMessageId,
+          gmailThreadId: input.gmailThreadId,
           status: input.status ?? "SENT",
         },
       });
@@ -616,8 +875,66 @@ export async function addOutboundMessage(input: {
         bodyText: input.bodyText,
         senderEmail: input.senderEmail,
         recipientEmail: input.recipientEmail,
+        gmailMessageId: input.gmailMessageId,
+        gmailThreadId: input.gmailThreadId,
         sentAt: new Date().toISOString(),
         status: input.status ?? "SENT",
+      });
+    },
+  );
+}
+
+export async function addInboundMessageFromImport(input: {
+  leadId: string;
+  subject: string;
+  bodyText: string;
+  senderEmail: string;
+  recipientEmail: string;
+  gmailMessageId: string;
+  gmailThreadId: string;
+}) {
+  return runWithFallback(
+    async () => {
+      let thread = await prisma.emailThread.findUnique({ where: { leadId: input.leadId } });
+      if (!thread) {
+        thread = await prisma.emailThread.create({
+          data: {
+            leadId: input.leadId,
+            subject: input.subject,
+            provider: "GMAIL",
+            externalThreadId: input.gmailThreadId,
+          },
+        });
+      }
+
+      await prisma.emailMessage.create({
+        data: {
+          threadId: thread.id,
+          direction: "INBOUND",
+          subject: input.subject,
+          bodyText: input.bodyText,
+          senderEmail: input.senderEmail,
+          recipientEmail: input.recipientEmail,
+          gmailMessageId: input.gmailMessageId,
+          gmailThreadId: input.gmailThreadId,
+          status: "RECEIVED",
+        },
+      });
+    },
+    () => {
+      const store = getFallbackStore();
+      store.messages.push({
+        id: makeId("msg"),
+        leadId: input.leadId,
+        direction: "INBOUND",
+        subject: input.subject,
+        bodyText: input.bodyText,
+        senderEmail: input.senderEmail,
+        recipientEmail: input.recipientEmail,
+        gmailMessageId: input.gmailMessageId,
+        gmailThreadId: input.gmailThreadId,
+        sentAt: new Date().toISOString(),
+        status: "RECEIVED",
       });
     },
   );
