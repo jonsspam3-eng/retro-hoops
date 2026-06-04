@@ -122,10 +122,19 @@ ${input.body}`;
   }
 
   const inquirySignalCount = inquiryPatterns.filter((pattern) => pattern.test(combined)).length;
-  const isInquiry = inquirySignalCount >= 2 || (inquirySignalCount >= 1 && bestConfidence >= 0.6);
+  const negativeContext = /(newsletter|market update|unsubscribe|promo)/i.test(combined);
+  const negatedInquiryTerms = /no\s+(?:listing|apartment|rental|showing)/i.test(combined);
+  const isInquiry =
+    !negativeContext &&
+    !negatedInquiryTerms &&
+    (inquirySignalCount >= 2 || (inquirySignalCount >= 1 && bestConfidence >= 0.6));
 
   if (inquirySignalCount > 0) {
     reasons.push(`Inquiry keyword signals: ${inquirySignalCount}`);
+  }
+
+  if (negativeContext || negatedInquiryTerms) {
+    reasons.push("Detected non-inquiry/newsletter context.");
   }
 
   if (!isInquiry) {

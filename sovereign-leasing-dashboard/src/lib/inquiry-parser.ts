@@ -25,8 +25,8 @@ export type ParsedInquiry = {
   listingLinks: string[];
 };
 
-const addressPattern = /\d{1,5}\s+[a-z0-9.'\-\s]+(?:street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|place|pl|court|ct|way)/gi;
-const unitPattern = /(?:apt|apartment|unit|#)\s*([a-z0-9-]+)/i;
+const addressPattern = /\b\d{1,5}\s+[a-z0-9.'\-\s]+(?:street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|place|pl|court|ct|way)\b/gi;
+const unitPattern = /\b(?:apt|apartment|unit|#)\s*([a-z0-9-]+)/i;
 const phonePattern = /(?:\+1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
 const moneyPattern = /\$\s*([\d,]{3,})/g;
 const incomePattern = /(income|salary|household income)[^\d$]{0,20}\$\s*([\d,]{4,})/i;
@@ -74,24 +74,20 @@ export function parseInquiryMessage(message: GmailInquiryMessage): ParsedInquiry
   const pets = /no pets/i.test(body)
     ? "No pets"
     : /pet|dog|cat/i.test(body)
-      ? body.match(/(?:pet|pets|dog|dogs|cat|cats)[^
-.]{0,60}/i)?.[0]
+      ? body.match(/(?:pet|pets|dog|dogs|cat|cats)[^\n.]{0,60}/i)?.[0]
       : undefined;
 
   const showingAvailability = /showing|available (?:this )?week|time/i.test(body)
-    ? body.match(/(?:showing|available)[^
-.]{0,80}/i)?.[0]
+    ? body.match(/(?:showing|available)[^\n.]{0,80}/i)?.[0]
     : undefined;
 
   const employmentDetails = /employed|student|self-employed|job|work/i.test(body)
-    ? body.match(/(?:employed|student|self-employed|job|work)[^
-.]{0,80}/i)?.[0]
+    ? body.match(/(?:employed|student|self-employed|job|work)[^\n.]{0,80}/i)?.[0]
     : undefined;
 
   const needsGuarantor = /guarantor/i.test(body) ? true : undefined;
   const voucherProgram = /voucher|section 8|cityfheps|fheps|program/i.test(body)
-    ? body.match(/(?:voucher|section 8|cityfheps|program)[^
-.]{0,80}/i)?.[0]
+    ? body.match(/(?:voucher|section 8|cityfheps|program)[^\n.]{0,80}/i)?.[0]
     : undefined;
 
   const missingFields: string[] = [];

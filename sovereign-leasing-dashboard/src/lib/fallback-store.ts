@@ -13,6 +13,7 @@ import type {
   AuditLogRecord,
   EmailTemplateRecord,
   GmailConnectionRecord,
+  EmailThreadMessage,
   GmailInquiryMessage,
   LeadNoteRecord,
   LeadQualificationRecord,
@@ -30,7 +31,7 @@ type InMemoryStore = {
   templates: EmailTemplateRecord[];
   rules: QualificationRuleRecord[];
   notes: LeadNoteRecord[];
-  messages: typeof seedEmailMessages;
+  messages: EmailThreadMessage[];
   auditLogs: AuditLogRecord[];
   gmailConnections: Array<
     GmailConnectionRecord & {

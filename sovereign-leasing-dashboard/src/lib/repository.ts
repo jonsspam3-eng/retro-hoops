@@ -483,7 +483,7 @@ export async function createLead(input: {
           status: status as never,
           responsivenessScore: 0,
           completenessScore: 0,
-          parsedFields: input.parsedFields,
+          parsedFields: input.parsedFields as never,
         },
       });
       return mapLead(row);

@@ -25,7 +25,6 @@ import type {
   GmailInquiryMessage,
   GmailInquirySourceFilter,
   ImportOutcome,
-  InquirySource,
   LeadRecord,
 } from "@/lib/types";
 
@@ -186,8 +185,7 @@ function buildMimeMessage(input: GmailDraftRequest) {
     "Content-Type: text/plain; charset=UTF-8",
     "",
     input.body,
-  ].join("
-");
+  ].join("\r\n");
 
   return Buffer.from(mime)
     .toString("base64")
@@ -418,7 +416,12 @@ async function listRealGmailMessages(userId: string, limit = 20): Promise<GmailI
 
 async function listMockMessages(): Promise<GmailInquiryMessage[]> {
   const store = getFallbackStore();
-  return store.mockGmailMessages;
+  const messages = store.mockGmailMessages;
+  if (!messages || !Array.isArray(messages)) {
+    console.error("[gmail.ts] mockGmailMessages is undefined or not an array:", typeof messages, messages);
+    return [];
+  }
+  return messages;
 }
 
 export async function getGmailConnectionState(userId: string): Promise<{
