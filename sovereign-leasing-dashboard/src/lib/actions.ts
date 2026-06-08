@@ -24,6 +24,7 @@ import {
 import { generateAiReplyDraft } from "@/lib/ai";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 function requiredString(value: FormDataEntryValue | null, name: string): string {
   const normalized = String(value ?? "").trim();
@@ -294,6 +295,30 @@ export async function importGmailMessagesAction(formData: FormData) {
   revalidatePath("/gmail-import");
   revalidatePath("/leads");
   revalidatePath("/dashboard");
+}
+
+
+export async function quickImportAndOpenLeadAction(formData: FormData) {
+  const session = await getAppSession();
+  assertEditor(session?.user?.role);
+
+  const messageId = requiredString(formData.get("messageId"), "Message ID");
+  const outcomes = await importSelectedGmailMessages({
+    userId: session?.user?.id ?? "user_admin",
+    actorId: session?.user?.id,
+    messageIds: [messageId],
+  });
+
+  const outcome = outcomes[0];
+  if (!outcome) {
+    throw new Error("No import outcome was returned.");
+  }
+
+  revalidatePath("/gmail-import");
+  revalidatePath("/leads");
+  revalidatePath("/dashboard");
+
+  redirect(`/leads/${outcome.leadId}?imported=1${outcome.duplicate ? "&duplicate=1" : ""}`);
 }
 
 export async function createGmailDraftForLeadAction(formData: FormData) {

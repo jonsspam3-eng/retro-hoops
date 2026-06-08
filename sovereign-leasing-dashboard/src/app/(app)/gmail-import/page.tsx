@@ -1,4 +1,4 @@
-import { importGmailMessagesAction } from "@/lib/actions";
+import { importGmailMessagesAction, quickImportAndOpenLeadAction } from "@/lib/actions";
 import { requireAppUser } from "@/lib/auth";
 import { fetchGmailInquiryMessages } from "@/lib/gmail";
 import { gmailSourceFilters } from "@/lib/types";
@@ -28,6 +28,8 @@ export default async function GmailImportPage({
 
   const connected = params.connected === "1";
   const oauthError = params.oauth_error;
+  const importable = messages.filter((message) => !message.importedLeadId && message.isInquiry);
+  const firstImportable = importable[0];
 
   return (
     <div className="space-y-4">
@@ -45,23 +47,62 @@ export default async function GmailImportPage({
       <div className="card">
         <h2 className="text-xl font-semibold">Gmail Inquiry Import</h2>
         <p className="mt-1 text-sm text-[#6d6f78]">
-          Import leasing inquiries from Gmail, parse lead details, and route to manual review.
+          Fastest workflow: connect Gmail, import inquiry, review parsed lead, create draft.
         </p>
-        <div className="mt-3 rounded-xl border border-[#e3d6c9] bg-[#fff6ee] p-3 text-sm">
-          <p className="font-semibold">
-            Mode: {mode === "LIVE" ? "Connected Gmail" : "Mock Gmail"}
-          </p>
-          <p>{connectionState.message}</p>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 1</p>
+            <p className="mt-1 text-sm font-medium">Connect inbox</p>
+            <p className="mt-1 text-xs text-[#6d6f78]">
+              {mode === "LIVE" ? "Connected Gmail active" : "Using mock mode until OAuth is configured"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 2</p>
+            <p className="mt-1 text-sm font-medium">Import inquiries</p>
+            <p className="mt-1 text-xs text-[#6d6f78]">{importable.length} ready to import in this filtered view</p>
+          </div>
+          <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 3</p>
+            <p className="mt-1 text-sm font-medium">Create Gmail draft</p>
+            <p className="mt-1 text-xs text-[#6d6f78]">AI-assisted draft always requires human review</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
           {user.role === "ADMIN" ? (
-            <div className="mt-2">
-              <a
-                href="/api/gmail/connect"
-                className="inline-flex rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]"
-              >
-                Connect Gmail (Admin)
-              </a>
-            </div>
-          ) : null}
+            <a
+              href="/api/gmail/connect"
+              className="inline-flex rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]"
+            >
+              Connect Gmail (Admin)
+            </a>
+          ) : (
+            <span className="rounded-lg border border-[#d9d4cc] bg-[#f8f6f3] px-3 py-2 text-xs text-[#6d6f78]">
+              Ask an admin to connect Gmail.
+            </span>
+          )}
+
+          <a href={`/gmail-import?source=${sourceFilter}`} className="rounded-lg border border-[#d9d4cc] bg-white px-3 py-2 text-sm text-[#050b23] hover:bg-[#f8f6f3]">
+            Refresh inbox
+          </a>
+
+          {firstImportable ? (
+            <form action={quickImportAndOpenLeadAction}>
+              <input type="hidden" name="messageId" value={firstImportable.id} />
+              <button type="submit">Import first inquiry & open lead</button>
+            </form>
+          ) : (
+            <span className="rounded-lg border border-[#d9d4cc] bg-[#f8f6f3] px-3 py-2 text-xs text-[#6d6f78]">
+              No importable inquiry in current filter.
+            </span>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-xl border border-[#e3d6c9] bg-[#fff6ee] p-3 text-sm">
+          <p className="font-semibold">Mode: {mode === "LIVE" ? "Connected Gmail" : "Mock Gmail"}</p>
+          <p>{connectionState.message}</p>
         </div>
       </div>
 
@@ -81,7 +122,7 @@ export default async function GmailImportPage({
       <form action={importGmailMessagesAction} className="card overflow-x-auto">
         <div className="mb-3 flex items-center justify-between gap-4">
           <p className="text-sm text-[#6d6f78]">
-            Select inquiry emails to import as leads. Duplicate message/thread imports are blocked.
+            Select inquiries and run bulk import. Duplicate message/thread imports are blocked automatically.
           </p>
           <button type="submit">Bulk import selected</button>
         </div>

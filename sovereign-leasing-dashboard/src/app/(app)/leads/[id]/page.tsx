@@ -25,8 +25,16 @@ import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ imported?: string; duplicate?: string }>;
+}) {
   const { id } = await params;
+  const pageParams = (await searchParams) ?? {};
+
   const [lead, listings, notes, history, templates, team, qualifications, activity] = await Promise.all([
     getLeadById(id),
     listListings(),
@@ -50,6 +58,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="space-y-4">
+      {pageParams.imported === "1" ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          {pageParams.duplicate === "1"
+            ? "This inquiry was already imported. Existing lead opened for review."
+            : "Inquiry imported successfully. Review details and create a Gmail draft."}
+        </div>
+      ) : null}
+
       <div className="card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -59,8 +75,38 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <div className="flex items-center gap-2">
             <StatusPill label={lead.status} />
             <span className="rounded-full bg-[#fff0d8] px-2.5 py-1 text-xs font-semibold text-[#7c4a08]">
-              {lead.status === "DRAFT_CREATED" ? "Draft Created — Human Review Required" : "Human Review Required"}
+              {lead.status === "DRAFT_CREATED" ? "Draft Created — Human Review Required" : "Review before sending"}
             </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="text-lg font-semibold">Phase 2 quick actions</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 1</p>
+            <p className="mt-1 text-sm font-medium">Confirm listing + lead details</p>
+            <p className="mt-1 text-xs text-[#6d6f78]">Source confidence: {lead.sourceDetectionConfidence ? `${Math.round(lead.sourceDetectionConfidence * 100)}%` : "N/A"}</p>
+          </div>
+          <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 2</p>
+            <p className="mt-1 text-sm font-medium">Regenerate AI draft if needed</p>
+            <form action={regenerateAiDraftAction} className="mt-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+              <button type="submit">Regenerate AI Draft</button>
+            </form>
+          </div>
+          <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 3</p>
+            <p className="mt-1 text-sm font-medium">Create Gmail draft for review</p>
+            <form action={createGmailDraftForLeadAction} className="mt-2 space-y-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+              <input type="hidden" name="templateId" value={activeTemplate?.id ?? ""} />
+              <input type="hidden" name="showingTimes" value="Tue 5:30pm, Thu 6:00pm" />
+              <input type="hidden" name="applicationLink" value="https://example.com/application" />
+              <button type="submit">Create Gmail Draft</button>
+            </form>
           </div>
         </div>
       </div>
@@ -69,7 +115,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <section className="space-y-4">
           <div className="card">
             <h3 className="text-lg font-semibold">Original imported email</h3>
-            <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">{lead.inquiryMessage}</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{lead.inquiryMessage}</p>
             <div className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
               <p><span className="font-semibold">Source:</span> {lead.source}</p>
               <p><span className="font-semibold">Subject:</span> {lead.inquirySubject ?? "Not captured"}</p>
@@ -81,10 +127,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <p><span className="font-semibold">Detection confidence:</span> {lead.sourceDetectionConfidence ? `${Math.round(lead.sourceDetectionConfidence * 100)}%` : "N/A"}</p>
               <p><span className="font-semibold">Listing match confidence:</span> {lead.listingMatchConfidence ? `${Math.round(lead.listingMatchConfidence * 100)}%` : "Unmatched"}</p>
               <p><span className="font-semibold">Listing match reason:</span> {lead.listingMatchReason ?? "Manual assignment required"}</p>
-              <p><span className="font-semibold">Move-in:</span> {lead.desiredMoveInDate ? new Date(lead.desiredMoveInDate).toLocaleDateString() : "Missing"}</p>
-              <p><span className="font-semibold">Budget:</span> {lead.budget ? `$${lead.budget.toLocaleString()}` : "Missing"}</p>
-              <p><span className="font-semibold">Occupants:</span> {lead.occupants ?? "Missing"}</p>
-              <p><span className="font-semibold">Pets:</span> {lead.pets ?? "Missing"}</p>
             </div>
             <p className="mt-3 text-xs text-[#6d6f78]">
               Missing parsed fields: {(lead.missingFields ?? []).length > 0 ? lead.missingFields?.join(", ") : "None"}
@@ -197,38 +239,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <div className="mt-2 rounded-xl bg-[#f8f6f3] p-3 text-sm">
               <p className="font-semibold">Inquiry summary</p>
               <p className="mt-1 whitespace-pre-wrap">{aiSummary.content}</p>
-              <p className="mt-2 text-xs text-[#6d6f78]">{aiSummary.rationale} ({aiSummary.model})</p>
             </div>
             <div className="mt-2 rounded-xl bg-[#f8f6f3] p-3 text-sm">
               <p className="font-semibold">Missing info check</p>
               <p className="mt-1 whitespace-pre-wrap">{aiMissing.content}</p>
-              <p className="mt-2 text-xs text-[#6d6f78]">{aiMissing.rationale} ({aiMissing.model})</p>
             </div>
           </div>
 
           <div className="card space-y-3">
             <h3 className="text-lg font-semibold">Gmail draft workflow</h3>
             <p className="text-xs text-[#6d6f78]">AI-generated draft · Review before sending · Do not rely on AI for final applicant approval.</p>
-
-            <form action={regenerateAiDraftAction} className="space-y-2">
-              <input type="hidden" name="leadId" value={lead.id} />
-              <button type="submit">Regenerate AI Draft</button>
-            </form>
-
-            <form action={createGmailDraftForLeadAction} className="space-y-2">
-              <input type="hidden" name="leadId" value={lead.id} />
-              <select name="templateId" defaultValue={activeTemplate?.id ?? ""}>
-                {templates.map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.name}
-                  </option>
-                ))}
-              </select>
-              <input name="showingTimes" placeholder="Showing times (e.g. Tue 5:30pm, Thu 6:00pm)" defaultValue="Tue 5:30pm, Thu 6:00pm" />
-              <input name="applicationLink" placeholder="Application link" defaultValue="https://example.com/application" />
-              <button type="submit">Create Gmail Draft</button>
-            </form>
-
             <div className="rounded-xl border border-[#ece8e3] bg-[#f8f6f3] p-3 text-sm">
               <p className="font-semibold">Latest draft preview</p>
               <p className="mt-2 whitespace-pre-wrap">{draftBody}</p>
