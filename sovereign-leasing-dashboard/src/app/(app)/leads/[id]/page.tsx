@@ -25,12 +25,17 @@ import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+function formatIso(value?: string | null) {
+  if (!value) return "N/A";
+  return value.replace("T", " ").slice(0, 16);
+}
+
 export default async function LeadDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ imported?: string; duplicate?: string }>;
+  searchParams?: Promise<{ imported?: string; duplicate?: string; draft_created?: string }>;
 }) {
   const { id } = await params;
   const pageParams = (await searchParams) ?? {};
@@ -63,6 +68,11 @@ export default async function LeadDetailPage({
           {pageParams.duplicate === "1"
             ? "This inquiry was already imported. Existing lead opened for review."
             : "Inquiry imported successfully. Review details and create a Gmail draft."}
+        </div>
+      ) : null}
+      {pageParams.draft_created === "1" ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+          Gmail draft created successfully. Human review is required before sending.
         </div>
       ) : null}
 
@@ -122,7 +132,7 @@ export default async function LeadDetailPage({
               <p><span className="font-semibold">Original sender:</span> {lead.originalSender ?? "Not captured"}</p>
               <p><span className="font-semibold">Gmail message ID:</span> {lead.gmailMessageId ?? "N/A"}</p>
               <p><span className="font-semibold">Gmail thread ID:</span> {lead.gmailThreadId ?? "N/A"}</p>
-              <p><span className="font-semibold">Imported at:</span> {lead.gmailImportedAt ? new Date(lead.gmailImportedAt).toLocaleString() : "N/A"}</p>
+              <p><span className="font-semibold">Imported at:</span> {formatIso(lead.gmailImportedAt)}</p>
               <p><span className="font-semibold">Source detection:</span> {lead.sourceDetectionResult ?? "Not detected"}</p>
               <p><span className="font-semibold">Detection confidence:</span> {lead.sourceDetectionConfidence ? `${Math.round(lead.sourceDetectionConfidence * 100)}%` : "N/A"}</p>
               <p><span className="font-semibold">Listing match confidence:</span> {lead.listingMatchConfidence ? `${Math.round(lead.listingMatchConfidence * 100)}%` : "Unmatched"}</p>
@@ -190,7 +200,7 @@ export default async function LeadDetailPage({
               {history.map((message) => (
                 <div key={message.id} className="rounded-xl border border-[#ece8e3] p-3">
                   <p className="text-xs text-[#6d6f78]">
-                    {message.direction} · {new Date(message.sentAt).toLocaleString()} · {message.status}
+                    {message.direction} · {formatIso(message.sentAt)} · {message.status}
                   </p>
                   <p className="mt-1 text-sm font-semibold">{message.subject}</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm">{message.bodyText}</p>
@@ -228,7 +238,7 @@ export default async function LeadDetailPage({
               {notes.map((note) => (
                 <div key={note.id} className="rounded-xl border border-[#ece8e3] p-2">
                   <p>{note.content}</p>
-                  <p className="mt-1 text-xs text-[#6d6f78]">{new Date(note.createdAt).toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-[#6d6f78]">{formatIso(note.createdAt)}</p>
                 </div>
               ))}
             </div>
@@ -264,7 +274,7 @@ export default async function LeadDetailPage({
               {activity.map((entry) => (
                 <div key={entry.id} className="rounded-xl border border-[#ece8e3] p-2">
                   <p className="font-semibold">{entry.action.replaceAll("_", " ")}</p>
-                  <p className="text-xs text-[#6d6f78]">{new Date(entry.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-[#6d6f78]">{formatIso(entry.createdAt)}</p>
                 </div>
               ))}
             </div>

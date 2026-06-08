@@ -6,6 +6,10 @@ import { StatusPill } from "@/components/status-pill";
 
 export const dynamic = "force-dynamic";
 
+function formatIso(value: string) {
+  return value.replace("T", " ").slice(0, 16);
+}
+
 export default async function GmailImportPage({
   searchParams,
 }: {
@@ -177,7 +181,7 @@ export default async function GmailImportPage({
                   <p className="font-medium">{message.subject}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-[#6d6f78]">{message.bodyText}</p>
                 </td>
-                <td className="py-2">{new Date(message.receivedAt).toLocaleString()}</td>
+                <td className="py-2">{formatIso(message.receivedAt)}</td>
                 <td className="py-2">
                   <p className="max-w-[220px] text-xs text-[#6d6f78]">{message.snippet ?? message.bodyText.slice(0, 160)}</p>
                 </td>
@@ -211,15 +215,12 @@ export default async function GmailImportPage({
                       View raw message
                     </a>
                     {!message.importedLeadId ? (
-                      <button
-                        type="submit"
-                        formAction={quickImportAndOpenLeadAction}
-                        name="messageId"
-                        value={message.id}
-                        className="text-left text-xs"
+                      <a
+                        href={`/api/gmail/import?messageId=${encodeURIComponent(message.id)}`}
+                        className="text-left text-xs text-[#0f2d93] hover:underline"
                       >
                         Import this message
-                      </button>
+                      </a>
                     ) : null}
                   </div>
                 </td>

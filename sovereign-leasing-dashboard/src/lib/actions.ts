@@ -162,12 +162,12 @@ export async function createRuleAction(formData: FormData) {
 
 export async function createTeamMemberAction(formData: FormData) {
   const session = await getAppSession();
-  const user = requireSessionUser(session);
-  assertAdmin(user.role);
+  const actor = requireSessionUser(session);
+  assertAdmin(actor.role);
 
   const password = requiredString(formData.get("password"), "Password");
   const passwordHash = await hash(password, 10);
-  const user = await createTeamMember({
+  const member = await createTeamMember({
     name: requiredString(formData.get("name"), "Name"),
     email: requiredString(formData.get("email"), "Email"),
     role: requiredString(formData.get("role"), "Role") as never,
@@ -175,10 +175,10 @@ export async function createTeamMemberAction(formData: FormData) {
   });
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: actor.id,
     action: "TEAM_MEMBER_CREATED",
     entityType: "USER",
-    entityId: user.id,
+    entityId: member.id,
   });
 
   revalidatePath("/team");
@@ -250,6 +250,7 @@ export async function assignLeadAction(formData: FormData) {
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/leads");
+  redirect(`/leads/${leadId}?draft_created=1`);
 }
 
 export async function assignLeadListingAction(formData: FormData) {
@@ -363,6 +364,7 @@ export async function createGmailDraftForLeadAction(formData: FormData) {
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/leads");
+  redirect(`/leads/${leadId}?draft_created=1`);
 }
 
 export async function regenerateAiDraftAction(formData: FormData) {

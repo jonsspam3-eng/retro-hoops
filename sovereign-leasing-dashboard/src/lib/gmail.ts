@@ -1001,7 +1001,6 @@ export async function importSelectedGmailMessages(input: {
         const existing = await findLeadByGmailIdentifiers({
           gmailMessageId: parsed.gmailMessageId,
           gmailThreadId: parsed.gmailThreadId,
-          email: parsed.clientEmail,
         });
         if (existing) {
           outcomes.push({

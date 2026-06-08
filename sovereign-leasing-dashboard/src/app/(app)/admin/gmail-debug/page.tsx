@@ -8,6 +8,10 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
+function formatIso(value: string) {
+  return value.replace("T", " ").slice(0, 16);
+}
+
 export default async function GmailDebugPage({
   searchParams,
 }: {
@@ -134,7 +138,7 @@ export default async function GmailDebugPage({
           <div className="mt-3 space-y-2 text-sm">
             <p><span className="font-semibold">Subject:</span> {messageDetail.subject}</p>
             <p><span className="font-semibold">From:</span> {messageDetail.fromName ?? messageDetail.fromEmail} ({messageDetail.fromEmail})</p>
-            <p><span className="font-semibold">Date:</span> {new Date(messageDetail.receivedAt).toLocaleString()}</p>
+            <p><span className="font-semibold">Date:</span> {formatIso(messageDetail.receivedAt)}</p>
             <p><span className="font-semibold">Snippet:</span> {messageDetail.snippet ?? "None"}</p>
             <p><span className="font-semibold">Thread:</span> {messageDetail.threadId}</p>
             <p><span className="font-semibold">Imported:</span> {messageDetail.importedLeadId ? `Yes (lead ${messageDetail.importedLeadId})` : "No"}</p>
