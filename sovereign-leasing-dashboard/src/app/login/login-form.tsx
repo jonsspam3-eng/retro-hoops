@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
@@ -11,6 +12,7 @@ async function runSignIn(email: string, password: string) {
     email,
     password,
     redirect: false,
+    callbackUrl: "/dashboard",
   });
 }
 
@@ -21,23 +23,31 @@ export function LoginForm() {
   return (
     <form
       className="space-y-4"
+      method="get"
+      action="/api/auth/signin"
       onSubmit={async (event) => {
         event.preventDefault();
         setLoading(true);
         setError(null);
 
-        const data = new FormData(event.currentTarget);
-        const result = await runSignIn(String(data.get("email")), String(data.get("password")));
+        try {
+          const data = new FormData(event.currentTarget);
+          const result = await runSignIn(String(data.get("email")), String(data.get("password")));
 
-        if (result?.ok) {
-          window.location.href = "/dashboard";
-          return;
+          if (result?.ok) {
+            window.location.href = "/dashboard";
+            return;
+          }
+
+          setError("Invalid credentials. Use seeded demo users shown below.");
+        } catch {
+          setError("Sign-in did not initialize. Use the secure fallback sign-in button below.");
+        } finally {
+          setLoading(false);
         }
-
-        setLoading(false);
-        setError("Invalid credentials. Use seeded demo users shown below.");
       }}
     >
+      <input type="hidden" name="callbackUrl" value="/dashboard" />
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[#6d6f78]">Email</label>
         <input name="email" type="email" placeholder="admin@sovereignnyc.com" defaultValue={demoEmail} required />
@@ -56,17 +66,29 @@ export function LoginForm() {
         onClick={async () => {
           setLoading(true);
           setError(null);
-          const result = await runSignIn(demoEmail, demoPassword);
-          if (result?.ok) {
-            window.location.href = "/dashboard";
-            return;
+          try {
+            const result = await runSignIn(demoEmail, demoPassword);
+            if (result?.ok) {
+              window.location.href = "/dashboard";
+              return;
+            }
+            setError("Demo sign-in failed. Verify seeded users are available.");
+          } catch {
+            setError("Quick sign-in failed to initialize. Use the secure fallback sign-in.");
+          } finally {
+            setLoading(false);
           }
-          setLoading(false);
-          setError("Demo sign-in failed. Verify seeded users are available.");
         }}
       >
         Quick demo sign-in
       </button>
+      <Link
+        href="/api/auth/signin?callbackUrl=%2Fdashboard"
+        className="block w-full rounded-lg border border-[#d7d2cb] bg-white px-4 py-2 text-center text-sm font-medium text-[#050b23] hover:bg-[#f8f6f3]"
+        prefetch={false}
+      >
+        Secure fallback sign-in
+      </Link>
     </form>
   );
 }
