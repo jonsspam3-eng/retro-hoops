@@ -1,11 +1,12 @@
 import { getAppSession } from "@/lib/auth";
-import { buildGoogleOAuthUrl } from "@/lib/gmail";
+import { normalizeGmailError, resolveGmailProvider } from "@/lib/gmail";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   const session = await getAppSession();
+  const appUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
   if (!session?.user?.id) {
-    return NextResponse.redirect(new URL("/login", process.env.NEXTAUTH_URL ?? "http://localhost:3000"));
+    return NextResponse.redirect(new URL("/login", appUrl));
   }
 
   if (session.user.role !== "ADMIN") {
@@ -13,6 +14,7 @@ export async function GET() {
   }
 
   try {
+    const provider = await resolveGmailProvider(session.user.id);
     const state = Buffer.from(
       JSON.stringify({
         userId: session.user.id,
@@ -21,12 +23,12 @@ export async function GET() {
       "utf8",
     ).toString("base64url");
 
-    const url = buildGoogleOAuthUrl(state);
+    const url = await provider.connectUrl(state);
     return NextResponse.redirect(url);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to start Gmail OAuth.";
+    const normalized = normalizeGmailError(error);
     return NextResponse.redirect(
-      new URL(`/gmail-import?oauth_error=${encodeURIComponent(message)}`, process.env.NEXTAUTH_URL ?? "http://localhost:3000"),
+      new URL(`/gmail-import?oauth_error=${encodeURIComponent(normalized.message)}`, appUrl),
     );
   }
 }

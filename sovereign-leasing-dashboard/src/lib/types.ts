@@ -207,6 +207,10 @@ export interface GmailConnectionRecord {
   email?: string | null;
   isActive: boolean;
   expiresAt?: string | null;
+  scope?: string | null;
+  tokenType?: string | null;
+  accessTokenExists?: boolean;
+  refreshTokenExists?: boolean;
   lastError?: string | null;
 }
 
@@ -215,6 +219,8 @@ export interface GmailInquiryMessage {
   threadId: string;
   subject: string;
   bodyText: string;
+  htmlBody?: string;
+  snippet?: string;
   fromEmail: string;
   fromName?: string;
   receivedAt: string;
@@ -225,6 +231,11 @@ export interface GmailInquiryMessage {
   listingLink?: string;
   importedLeadId?: string;
   duplicateReason?: string;
+}
+
+export interface GmailInquiryMessageDetail extends GmailInquiryMessage {
+  headers: Record<string, string>;
+  rawPayload?: unknown;
 }
 
 export type ImportOutcome = {

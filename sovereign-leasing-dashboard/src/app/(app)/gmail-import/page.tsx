@@ -1,6 +1,6 @@
 import { importGmailMessagesAction, quickImportAndOpenLeadAction } from "@/lib/actions";
 import { requireAppUser } from "@/lib/auth";
-import { fetchGmailInquiryMessages } from "@/lib/gmail";
+import { buildGmailQuery, fetchGmailInquiryMessages, getRequiredGoogleRedirectUri } from "@/lib/gmail";
 import { gmailSourceFilters } from "@/lib/types";
 import { StatusPill } from "@/components/status-pill";
 
@@ -24,6 +24,7 @@ export default async function GmailImportPage({
   const { mode, connectionState, messages } = await fetchGmailInquiryMessages({
     userId: user.id,
     sourceFilter,
+    query: buildGmailQuery(30),
   });
 
   const connected = params.connected === "1";
@@ -103,6 +104,19 @@ export default async function GmailImportPage({
         <div className="mt-3 rounded-xl border border-[#e3d6c9] bg-[#fff6ee] p-3 text-sm">
           <p className="font-semibold">Mode: {mode === "LIVE" ? "Connected Gmail" : "Mock Gmail"}</p>
           <p>{connectionState.message}</p>
+          <p className="mt-1 text-xs text-[#6d6f78]">
+            Required Google redirect URI: <span className="font-mono">{getRequiredGoogleRedirectUri()}</span>
+          </p>
+          {connectionState.connection?.lastError ? (
+            <p className="mt-1 text-xs text-rose-700">Last Gmail error: {connectionState.connection.lastError}</p>
+          ) : null}
+          {user.role === "ADMIN" ? (
+            <p className="mt-1 text-xs">
+              <a href="/admin/gmail-debug" className="text-[#0f2d93] hover:underline">
+                Open admin Gmail debug panel
+              </a>
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -135,8 +149,10 @@ export default async function GmailImportPage({
               <th className="pb-2">Sender</th>
               <th className="pb-2">Subject</th>
               <th className="pb-2">Received</th>
+              <th className="pb-2">Snippet</th>
               <th className="pb-2">Detection</th>
               <th className="pb-2">Import status</th>
+              <th className="pb-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -163,6 +179,9 @@ export default async function GmailImportPage({
                 </td>
                 <td className="py-2">{new Date(message.receivedAt).toLocaleString()}</td>
                 <td className="py-2">
+                  <p className="max-w-[220px] text-xs text-[#6d6f78]">{message.snippet ?? message.bodyText.slice(0, 160)}</p>
+                </td>
+                <td className="py-2">
                   <p>{Math.round(message.sourceConfidence * 100)}% confidence</p>
                   <p className="text-xs text-[#6d6f78]">
                     {message.isInquiry ? "Likely leasing inquiry" : "Low inquiry confidence"}
@@ -182,6 +201,27 @@ export default async function GmailImportPage({
                   ) : (
                     <p className="text-xs text-[#6d6f78]">Ready to import</p>
                   )}
+                </td>
+                <td className="py-2">
+                  <div className="flex flex-col gap-1">
+                    <a
+                      href={`/admin/gmail-debug?messageId=${encodeURIComponent(message.id)}`}
+                      className="text-xs text-[#0f2d93] hover:underline"
+                    >
+                      View raw message
+                    </a>
+                    {!message.importedLeadId ? (
+                      <button
+                        type="submit"
+                        formAction={quickImportAndOpenLeadAction}
+                        name="messageId"
+                        value={message.id}
+                        className="text-left text-xs"
+                      >
+                        Import this message
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

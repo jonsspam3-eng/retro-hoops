@@ -19,7 +19,9 @@ import {
 import { getAppSession } from "@/lib/auth";
 import {
   createGmailDraftFromLead,
+  disconnectGmailConnection,
   importSelectedGmailMessages,
+  runGmailDebugAction,
 } from "@/lib/gmail";
 import { generateAiReplyDraft } from "@/lib/ai";
 import { hash } from "bcryptjs";
@@ -34,7 +36,17 @@ function requiredString(value: FormDataEntryValue | null, name: string): string 
   return normalized;
 }
 
+function requireSessionUser(session: Awaited<ReturnType<typeof getAppSession>>) {
+  if (!session?.user?.id) {
+    throw new Error("You must be signed in to perform this action.");
+  }
+  return session.user;
+}
+
 function assertEditor(role?: string) {
+  if (!role) {
+    throw new Error("You must be signed in to perform this action.");
+  }
   if (role === "READ_ONLY") {
     throw new Error("Read-only users cannot modify records");
   }
@@ -48,7 +60,8 @@ function assertAdmin(role?: string) {
 
 export async function createLeadAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const lead = await createLead({
     clientName: requiredString(formData.get("clientName"), "Client name"),
@@ -59,7 +72,7 @@ export async function createLeadAction(formData: FormData) {
   });
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId: lead.id,
     action: "LEAD_CREATED",
     entityType: "LEAD",
@@ -72,7 +85,8 @@ export async function createLeadAction(formData: FormData) {
 
 export async function createListingAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const listing = await createListing({
     address: requiredString(formData.get("address"), "Address"),
@@ -86,7 +100,7 @@ export async function createListingAction(formData: FormData) {
   });
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     action: "LISTING_CREATED",
     entityType: "LISTING",
     entityId: listing.id,
@@ -98,7 +112,8 @@ export async function createListingAction(formData: FormData) {
 
 export async function createTemplateAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const template = await createTemplate({
     name: requiredString(formData.get("name"), "Template name"),
@@ -109,7 +124,7 @@ export async function createTemplateAction(formData: FormData) {
   });
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     action: "TEMPLATE_CREATED",
     entityType: "TEMPLATE",
     entityId: template.id,
@@ -120,7 +135,8 @@ export async function createTemplateAction(formData: FormData) {
 
 export async function createRuleAction(formData: FormData) {
   const session = await getAppSession();
-  assertAdmin(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertAdmin(user.role);
 
   const criteriaText = String(formData.get("criteria") ?? "{}");
   const criteria = JSON.parse(criteriaText);
@@ -134,7 +150,7 @@ export async function createRuleAction(formData: FormData) {
   });
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     action: "RULE_CREATED",
     entityType: "QUALIFICATION_RULE",
     entityId: rule.id,
@@ -146,7 +162,8 @@ export async function createRuleAction(formData: FormData) {
 
 export async function createTeamMemberAction(formData: FormData) {
   const session = await getAppSession();
-  assertAdmin(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertAdmin(user.role);
 
   const password = requiredString(formData.get("password"), "Password");
   const passwordHash = await hash(password, 10);
@@ -158,7 +175,7 @@ export async function createTeamMemberAction(formData: FormData) {
   });
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     action: "TEAM_MEMBER_CREATED",
     entityType: "USER",
     entityId: user.id,
@@ -169,17 +186,18 @@ export async function createTeamMemberAction(formData: FormData) {
 
 export async function addLeadNoteAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   await addLeadNote({
     leadId,
-    authorId: session?.user?.id,
+    authorId: user.id,
     content: requiredString(formData.get("content"), "Note"),
   });
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId,
     action: "LEAD_NOTE_ADDED",
     entityType: "LEAD_NOTE",
@@ -191,14 +209,15 @@ export async function addLeadNoteAction(formData: FormData) {
 
 export async function updateLeadStatusAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const status = requiredString(formData.get("status"), "Status") as never;
   await updateLeadStatus(leadId, status);
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId,
     action: "LEAD_STATUS_UPDATED",
     entityType: "LEAD",
@@ -213,14 +232,15 @@ export async function updateLeadStatusAction(formData: FormData) {
 
 export async function assignLeadAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const agentId = String(formData.get("agentId") ?? "").trim() || null;
   await assignLead(leadId, agentId);
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId,
     action: "LEAD_ASSIGNED",
     entityType: "LEAD",
@@ -234,14 +254,15 @@ export async function assignLeadAction(formData: FormData) {
 
 export async function assignLeadListingAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const listingId = String(formData.get("listingId") ?? "").trim() || null;
   await updateLeadListing(leadId, listingId);
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId,
     action: "LEAD_LISTING_UPDATED",
     entityType: "LEAD",
@@ -255,13 +276,14 @@ export async function assignLeadListingAction(formData: FormData) {
 
 export async function evaluateLeadAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const evaluation = await evaluateLead(leadId);
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId,
     action: "LEAD_EVALUATED",
     entityType: "LEAD_QUALIFICATION",
@@ -279,7 +301,8 @@ export async function evaluateLeadAction(formData: FormData) {
 
 export async function importGmailMessagesAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const messageIds = formData
     .getAll("messageIds")
@@ -287,8 +310,8 @@ export async function importGmailMessagesAction(formData: FormData) {
     .filter(Boolean);
 
   await importSelectedGmailMessages({
-    userId: session?.user?.id ?? "user_admin",
-    actorId: session?.user?.id,
+    userId: user.id,
+    actorId: user.id,
     messageIds,
   });
 
@@ -300,12 +323,13 @@ export async function importGmailMessagesAction(formData: FormData) {
 
 export async function quickImportAndOpenLeadAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const messageId = requiredString(formData.get("messageId"), "Message ID");
   const outcomes = await importSelectedGmailMessages({
-    userId: session?.user?.id ?? "user_admin",
-    actorId: session?.user?.id,
+    userId: user.id,
+    actorId: user.id,
     messageIds: [messageId],
   });
 
@@ -323,17 +347,18 @@ export async function quickImportAndOpenLeadAction(formData: FormData) {
 
 export async function createGmailDraftForLeadAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   await createGmailDraftFromLead({
     leadId,
-    userId: session?.user?.id ?? "user_admin",
-    actorId: session?.user?.id,
+    userId: user.id,
+    actorId: user.id,
     templateId: String(formData.get("templateId") ?? "") || undefined,
     showingTimes: String(formData.get("showingTimes") ?? "") || undefined,
     applicationLink: String(formData.get("applicationLink") ?? "") || undefined,
-    agentName: session?.user?.name ?? "Sovereign Leasing Team",
+    agentName: user.name ?? "Sovereign Leasing Team",
   });
 
   revalidatePath(`/leads/${leadId}`);
@@ -342,7 +367,8 @@ export async function createGmailDraftForLeadAction(formData: FormData) {
 
 export async function regenerateAiDraftAction(formData: FormData) {
   const session = await getAppSession();
-  assertEditor(session?.user?.role);
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
@@ -356,7 +382,7 @@ export async function regenerateAiDraftAction(formData: FormData) {
   await saveLeadAiDraft(leadId, aiDraft.content);
 
   await writeAuditLog({
-    actorId: session?.user?.id,
+    actorId: user.id,
     leadId,
     action: "AI_DRAFT_REGENERATED",
     entityType: "LEAD",
@@ -365,4 +391,31 @@ export async function regenerateAiDraftAction(formData: FormData) {
   });
 
   revalidatePath(`/leads/${leadId}`);
+}
+
+export async function disconnectGmailAction() {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertAdmin(user.role);
+  await disconnectGmailConnection(user.id);
+  revalidatePath("/gmail-import");
+  revalidatePath("/admin/gmail-debug");
+  redirect("/admin/gmail-debug?debug_message=Disconnected+Gmail+connection");
+}
+
+export async function runGmailDebugActionForm(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertAdmin(user.role);
+  const action = requiredString(formData.get("action"), "Debug action") as Parameters<
+    typeof runGmailDebugAction
+  >[0]["action"];
+  const result = await runGmailDebugAction({
+    userId: user.id,
+    action,
+  });
+  revalidatePath("/admin/gmail-debug");
+  redirect(
+    `/admin/gmail-debug?debug_action=${encodeURIComponent(action)}&debug_ok=${result.ok ? "1" : "0"}&debug_message=${encodeURIComponent(result.message)}`,
+  );
 }

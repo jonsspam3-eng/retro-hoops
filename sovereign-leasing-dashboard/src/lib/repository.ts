@@ -153,15 +153,20 @@ function mapLead(lead: {
   };
 }
 
-async function runWithFallback<T>(dbFn: () => Promise<T>, fallbackFn: () => T | Promise<T>): Promise<T> {
+async function runWithFallback<T>(
+  dbFn: () => Promise<T>,
+  fallbackFn: () => T | Promise<T>,
+): Promise<T> {
   if (shouldUseFallback()) {
     return fallbackFn();
   }
 
   try {
     return await dbFn();
-  } catch {
-    return fallbackFn();
+  } catch (error) {
+    // Never silently switch to in-memory mode when DATABASE_URL is configured.
+    // Hidden fallback on write/read failures can create inconsistent state.
+    throw error;
   }
 }
 

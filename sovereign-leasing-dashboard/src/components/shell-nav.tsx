@@ -23,6 +23,13 @@ const navItems: Item[] = [
 
 export function ShellNav({ userName, role, children }: { userName: string; role: string; children: ReactNode }) {
   const currentPath = usePathname();
+  const visibleItems = role === "ADMIN"
+    ? [
+        ...navItems.slice(0, 3),
+        { href: "/admin/gmail-debug", label: "Gmail Debug", description: "Connection diagnostics" },
+        ...navItems.slice(3),
+      ]
+    : navItems;
 
   return (
     <div className="min-h-screen bg-[#f8f6f3] text-[#050b23]">
@@ -34,7 +41,7 @@ export function ShellNav({ userName, role, children }: { userName: string; role:
             <p className="mt-1 text-xs text-white/80">{userName} · {role.replaceAll("_", " ")}</p>
           </div>
           <nav className="space-y-2">
-            {navItems.map((item) => {
+            {visibleItems.map((item) => {
               const active = currentPath.startsWith(item.href);
               return (
                 <Link

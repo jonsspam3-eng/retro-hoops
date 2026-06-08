@@ -1,150 +1,124 @@
 # Sovereign Leasing Command
 
-Internal leasing operations platform for **Sovereign Associates / Sovereign Realty NYC**.
+Internal leasing inquiry dashboard for **Sovereign Associates / Sovereign Realty NYC**.
 
-## Phase 2 overview (implemented)
+## Phase 2 (stabilized)
 
-Phase 2 adds Gmail-powered leasing inquiry workflows while keeping human control:
+Phase 2 focuses on safe, testable Gmail workflows:
 
-- Gmail OAuth connection flow for admin users
-- Live Gmail import dashboard (with mock fallback mode)
-- Inquiry detection and source classification (StreetEasy, Zillow, RealtyMX, website, direct email, unknown)
-- Parsing of qualification fields from inbound email content
-- Listing matching with confidence scoring and manual reassignment support
-- Duplicate prevention using Gmail message/thread IDs + fallback heuristics
-- AI-assisted draft generation and **Gmail draft creation only** (no auto-send)
-- Lead detail upgrades with Gmail metadata, source confidence, listing match confidence, and activity timeline
+- Connect Gmail with OAuth (admin-only)
+- List recent inquiry-like messages
+- Read message details (including raw payload in debug view)
+- Import selected messages into leads
+- Prevent duplicate imports
+- Create Gmail drafts only (never auto-send)
+- Run full mock mode without Google setup
+- Use admin debug tools at `/admin/gmail-debug`
 
-## Current product capabilities
+## Safety guardrails
 
-### Phase 1 foundation
+- No automatic sends in Phase 2.
+- AI output is advisory only and requires human review.
+- OAuth tokens are encrypted at rest and never shown in UI.
 
-- Manual lead and listing dashboard
-- Lead records and listing CRUD
-- Email templates with merge variables
-- AI assistant abstraction
-- Qualification scoring
-- Agent/admin handoff views
-- Notes and audit-log schema
+## Environment variables
 
-### Phase 2 additions
-
-- Gmail OAuth + token refresh support
-- Gmail import page at `/gmail-import`
-- Bulk import selected inquiry messages into leads
-- Human review-first draft workflow labels:
-  - `Draft Created — Human Review Required`
-  - `AI-generated draft`
-  - `Review before sending`
-  - `Do not rely on AI for final applicant approval`
-
-## Required environment variables
-
-Copy `.env.example` to `.env` and set values:
+Copy `.env.example` to `.env` and set:
 
 - `DATABASE_URL`
-- `NEXTAUTH_URL`
+- `NEXTAUTH_URL` (or `APP_URL`)
+- `APP_URL` (optional but recommended)
 - `NEXTAUTH_SECRET`
-- `AI_PROVIDER`
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REDIRECT_URI` (recommended local value: `http://localhost:3000/api/gmail/callback`)
+- `GOOGLE_REDIRECT_URI`
 - `GMAIL_TOKEN_ENCRYPTION_KEY`
+- Optional AI vars: `AI_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
 
-## Local development
+## Local setup
 
-1. Install dependencies
+1. `npm install`
+2. `cp .env.example .env`
+3. `npm run db:generate`
+4. `npm run dev`
 
-```bash
-npm install
-```
+## Google Cloud Console setup (exact steps)
 
-2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-3. Generate Prisma client
-
-```bash
-npm run db:generate
-```
-
-4. Optional: migrate + seed a local Postgres database
-
-```bash
-npm run db:migrate
-npm run db:seed
-```
-
-5. Run app
-
-```bash
-npm run dev
-```
-
-6. Run quality checks
-
-```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
-```
-
-## Gmail OAuth setup steps
-
-1. Create or select a Google Cloud project.
-2. Enable the **Gmail API**.
-3. Configure OAuth consent screen for internal tooling.
-4. Create OAuth client credentials (Web application).
-5. Add authorized redirect URI:
+1. Create/select a Google Cloud project.
+2. Enable **Gmail API**.
+3. Configure OAuth consent screen for internal app usage.
+4. Create OAuth client credentials (**Web application**).
+5. Add this exact authorized redirect URI:
    - `http://localhost:3000/api/gmail/callback`
-6. Add credentials into `.env`:
+6. Set these env vars in `.env`:
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
-   - `GOOGLE_REDIRECT_URI`
-7. Add `GMAIL_TOKEN_ENCRYPTION_KEY` (strong secret).
-8. Sign in as an admin user and open `/gmail-import`.
-9. Click **Connect Gmail (Admin)** and complete OAuth.
+   - `GOOGLE_REDIRECT_URI=http://localhost:3000/api/gmail/callback`
+7. Set `GMAIL_TOKEN_ENCRYPTION_KEY` to a strong secret.
+8. Start app, login as admin, open `/gmail-import`, click **Connect Gmail (Admin)**.
 
-## Mock mode instructions
+### Required OAuth scopes
 
-If Google OAuth variables are missing, the app automatically runs in **mock Gmail mode**:
+- `https://www.googleapis.com/auth/gmail.readonly`
+- `https://www.googleapis.com/auth/gmail.compose`
+- `openid`
+- `email`
 
-- `/gmail-import` shows sample inquiry messages
-- Bulk import still creates leads
-- Draft creation still works using mock draft storage
-- UI clearly indicates mock mode
+Phase 2 intentionally does **not** request `gmail.send`.
 
-This keeps local development/test workflows usable without external credentials.
+## Mock mode (no Google required)
 
-## Human review and compliance guardrails
+If Google OAuth env vars are missing, app auto-falls back to mock mode.
 
-- No automatic email send in Phase 2.
-- No automatic applicant approval/denial from AI outputs.
-- Qualification logic should remain tied to legitimate rental criteria.
-- OAuth tokens are encrypted at rest and never displayed in UI.
+Mock mode includes sample inquiries from:
 
-## Known limitations (Phase 2)
+- StreetEasy
+- Zillow
+- RealtyMX
+- Company website
+- Direct client email
 
-- Gmail import currently focuses on recent messages and inquiry keyword/rule matching.
-- Source detection and parsing are heuristic-based; manual correction remains expected.
-- Threading is supported for draft creation, but send/dispatch remains intentionally manual.
-- OAuth token revocation handling is graceful but does not yet include proactive reconnect notifications.
+Test mock mode end-to-end:
 
-## Demo credentials
+1. Unset Google env vars.
+2. Open `/gmail-import` and confirm **Mock Gmail** label.
+3. Import one mock inquiry.
+4. Re-import same message and confirm duplicate is blocked.
+5. Open lead and create draft (stored as mock draft).
+6. Open `/admin/gmail-debug` and run **Run Mock Import Test**.
 
-- `admin@sovereignnyc.com` / `Sovereign123!`
-- `Quick demo sign-in` button is available on the login page.
+## Real Gmail test flow
 
-## Phase 3 roadmap (recommended)
+1. Configure all required env vars.
+2. Connect Gmail from `/gmail-import` (admin account).
+3. Confirm status on `/admin/gmail-debug`:
+   - Connected email
+   - Access/refresh token existence
+   - Token refresh status
+   - Granted scopes
+   - Redirect URI
+4. Run **List Recent Messages** and **Read First Message**.
+5. Import one message from `/gmail-import`.
+6. Re-import same message and confirm duplicate prevention.
+7. Create draft from lead details page and confirm lead status changes to `DRAFT_CREATED`.
 
-- Auto-assist follow-up sequencing (still human-approved send)
-- Advanced conversion analytics and cohort trend reporting
-- External source connectors (StreetEasy/RealtyMX ingestion pipelines)
-- SLA monitoring for response latency and agent performance
-- Richer fair-housing compliance policy checks for generated drafts
+## Debugging common Gmail failures
+
+Use `/admin/gmail-debug` for diagnostics and recent error context.
+
+- `redirect_uri_mismatch`: Google Console redirect URI does not match `GOOGLE_REDIRECT_URI`
+- `invalid_client`: wrong `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- `access_denied`: user denied OAuth consent
+- expired/revoked token: reconnect Gmail
+- insufficient scopes: reconnect and grant required scopes
+- Gmail API disabled: enable Gmail API in project
+- no refresh token: reconnect with consent flow
+- failed message fetch/draft creation: check debug panel + scopes
+- duplicate import: message already linked to existing lead
+
+## Developer checks
+
+- `npm run lint`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`

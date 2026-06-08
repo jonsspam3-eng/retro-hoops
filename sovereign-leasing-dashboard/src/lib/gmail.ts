@@ -9,6 +9,7 @@ import {
   addInboundMessageFromImport,
   addOutboundMessage,
   createLead,
+  findLeadByGmailIdentifiers,
   getLeadById,
   listLeads,
   listListings,
@@ -23,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import type {
   GmailConnectionRecord,
   GmailInquiryMessage,
+  GmailInquiryMessageDetail,
   GmailInquirySourceFilter,
   ImportOutcome,
   LeadRecord,
@@ -53,13 +55,61 @@ export type GmailDraftResult = {
 };
 
 const GOOGLE_SCOPES = [
-  "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.readonly",
   "openid",
   "email",
-  "profile",
 ];
+
+type GmailConnectionState = {
+  mode: "LIVE" | "MOCK";
+  configured: boolean;
+  connected: boolean;
+  connection?: GmailConnectionRecord | null;
+  message: string;
+};
+
+type GmailErrorCode =
+  | "redirect_uri_mismatch"
+  | "invalid_client"
+  | "access_denied"
+  | "expired_or_revoked_token"
+  | "insufficient_scopes"
+  | "gmail_api_disabled"
+  | "no_refresh_token"
+  | "failed_message_fetch"
+  | "failed_draft_creation"
+  | "database_duplicate"
+  | "unknown";
+
+export type GmailDebugResult = {
+  action: string;
+  ok: boolean;
+  message: string;
+  data?: Record<string, unknown>;
+};
+
+export interface GmailProvider {
+  connectUrl(state: string): Promise<string>;
+  getConnectionStatus(userId: string): Promise<GmailConnectionState>;
+  listRecentMessages(input: {
+    userId: string;
+    limit?: number;
+    query?: string;
+  }): Promise<GmailInquiryMessage[]>;
+  getMessage(input: { userId: string; messageId: string }): Promise<GmailInquiryMessageDetail | null>;
+  importMessageAsLead(input: { userId: string; actorId?: string; messageId: string }): Promise<ImportOutcome>;
+  createDraftReply(input: {
+    leadId: string;
+    userId: string;
+    actorId?: string;
+    templateId?: string;
+    agentName?: string;
+    showingTimes?: string;
+    applicationLink?: string;
+  }): ReturnType<typeof createGmailDraftFromLead>;
+  disconnect(userId: string): Promise<void>;
+}
 
 function isGoogleEnvConfigured() {
   return Boolean(
@@ -67,6 +117,37 @@ function isGoogleEnvConfigured() {
       process.env.GOOGLE_CLIENT_SECRET &&
       process.env.GOOGLE_REDIRECT_URI,
   );
+}
+
+function getAppBaseUrl(): string {
+  return (
+    process.env.APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    "http://localhost:3000"
+  );
+}
+
+export function getRequiredGoogleRedirectUri(): string {
+  return process.env.GOOGLE_REDIRECT_URI || `${getAppBaseUrl()}/api/gmail/callback`;
+}
+
+export function getGoogleScopes(): string[] {
+  return [...GOOGLE_SCOPES];
+}
+
+export function validateOAuthConfig() {
+  const missing: string[] = [];
+  if (!process.env.GOOGLE_CLIENT_ID) missing.push("GOOGLE_CLIENT_ID");
+  if (!process.env.GOOGLE_CLIENT_SECRET) missing.push("GOOGLE_CLIENT_SECRET");
+  if (!process.env.GOOGLE_REDIRECT_URI) missing.push("GOOGLE_REDIRECT_URI");
+  if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
+  if (!process.env.NEXTAUTH_URL && !process.env.APP_URL) missing.push("NEXTAUTH_URL or APP_URL");
+  return {
+    configured: missing.length === 0,
+    missing,
+    requiredRedirectUri: getRequiredGoogleRedirectUri(),
+    scopes: getGoogleScopes(),
+  };
 }
 
 function tokenSecret(): string {
@@ -124,9 +205,11 @@ function createOAuthClient() {
   );
 }
 
-function decodeBase64Url(content: string): string {
+export function decodeBase64Url(content: string): string {
   const normalized = content.replace(/-/g, "+").replace(/_/g, "/");
-  return Buffer.from(normalized, "base64").toString("utf8");
+  const padLength = normalized.length % 4 === 0 ? 0 : 4 - (normalized.length % 4);
+  const padded = `${normalized}${"=".repeat(padLength)}`;
+  return Buffer.from(padded, "base64").toString("utf8");
 }
 
 function parseFromHeader(raw: string): { email: string; name?: string } {
@@ -139,38 +222,154 @@ function parseFromHeader(raw: string): { email: string; name?: string } {
   };
 }
 
-function extractBodyText(payload: {
+type GmailPayloadPart = {
   mimeType?: string;
+  filename?: string;
   body?: { data?: string | null };
-  parts?: Array<{
-    mimeType?: string;
-    body?: { data?: string | null };
-    parts?: unknown[];
-  }>;
-}): string {
-  if (payload.body?.data && payload.mimeType === "text/plain") {
-    return decodeBase64Url(payload.body.data);
-  }
+  parts?: GmailPayloadPart[];
+};
 
-  if (payload.parts?.length) {
-    for (const part of payload.parts) {
-      if (part.mimeType === "text/plain" && part.body?.data) {
-        return decodeBase64Url(part.body.data);
-      }
-      if (part.parts && part.parts.length) {
-        const nested = extractBodyText(part as any);
-        if (nested) {
-          return nested;
-        }
-      }
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+export function stripHtmlToText(html: string): string {
+  const withoutScripts = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ");
+  const withBreaks = withoutScripts
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/li>/gi, "\n");
+  const stripped = withBreaks.replace(/<[^>]+>/g, " ");
+  return decodeHtmlEntities(stripped).replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
+}
+
+function collectBodyParts(part: GmailPayloadPart, textParts: string[], htmlParts: string[]) {
+  if (part.parts?.length) {
+    for (const child of part.parts) {
+      collectBodyParts(child, textParts, htmlParts);
     }
   }
 
-  if (payload.body?.data) {
-    return decodeBase64Url(payload.body.data);
+  if (part.filename) {
+    return;
   }
 
-  return "";
+  if (!part.body?.data) {
+    return;
+  }
+
+  const decoded = decodeBase64Url(part.body.data).trim();
+  if (!decoded) {
+    return;
+  }
+
+  if (part.mimeType?.startsWith("text/plain")) {
+    textParts.push(decoded);
+    return;
+  }
+
+  if (part.mimeType?.startsWith("text/html")) {
+    htmlParts.push(decoded);
+    return;
+  }
+
+  // Fallback for payloads without strict mime typing.
+  textParts.push(decoded);
+}
+
+export function extractMessageBodies(payload: GmailPayloadPart): {
+  plainTextBody: string;
+  htmlBody?: string;
+} {
+  const textParts: string[] = [];
+  const htmlParts: string[] = [];
+  collectBodyParts(payload, textParts, htmlParts);
+  const htmlBody = htmlParts.join("\n").trim() || undefined;
+  const plainTextBody =
+    textParts.join("\n").trim() ||
+    (htmlBody ? stripHtmlToText(htmlBody) : "");
+
+  return {
+    plainTextBody,
+    htmlBody,
+  };
+}
+
+function getErrorText(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return JSON.stringify(error);
+}
+
+export function normalizeGmailError(error: unknown): { code: GmailErrorCode; message: string } {
+  const raw = getErrorText(error).toLowerCase();
+  if (raw.includes("redirect_uri_mismatch")) {
+    return {
+      code: "redirect_uri_mismatch",
+      message: "Google OAuth redirect URI mismatch. Verify GOOGLE_REDIRECT_URI in app settings and Google Cloud Console.",
+    };
+  }
+  if (raw.includes("invalid_client")) {
+    return { code: "invalid_client", message: "Invalid Google OAuth client credentials. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." };
+  }
+  if (raw.includes("access_denied")) {
+    return { code: "access_denied", message: "Access denied in Google OAuth consent flow." };
+  }
+  if (raw.includes("invalid_grant") || raw.includes("revoked") || raw.includes("token has been expired")) {
+    return {
+      code: "expired_or_revoked_token",
+      message: "Gmail token is expired or revoked. Disconnect and reconnect Gmail.",
+    };
+  }
+  if (raw.includes("insufficient") && raw.includes("scope")) {
+    return {
+      code: "insufficient_scopes",
+      message: "Connected Gmail account is missing required scopes (gmail.readonly, gmail.compose, openid, email). Reconnect Gmail.",
+    };
+  }
+  if (raw.includes("gmail api has not been used") || raw.includes("access_not_configured") || raw.includes("api not enabled")) {
+    return {
+      code: "gmail_api_disabled",
+      message: "Gmail API is disabled in Google Cloud project. Enable Gmail API and retry.",
+    };
+  }
+  if (raw.includes("refresh token") && raw.includes("missing")) {
+    return {
+      code: "no_refresh_token",
+      message: "Google OAuth did not return a refresh token. Reconnect with prompt=consent and access_type=offline.",
+    };
+  }
+  if (raw.includes("draft")) {
+    return { code: "failed_draft_creation", message: "Failed to create Gmail draft. Check compose scope and reconnect if needed." };
+  }
+  if (raw.includes("fetch") || raw.includes("messages")) {
+    return { code: "failed_message_fetch", message: "Failed to fetch Gmail messages. Check token status and Gmail API configuration." };
+  }
+  if (raw.includes("unique constraint") || raw.includes("p2002")) {
+    return { code: "database_duplicate", message: "Duplicate import blocked by database unique constraint." };
+  }
+  return { code: "unknown", message: `Gmail operation failed: ${getErrorText(error)}` };
+}
+
+export function buildGmailQuery(days = 30): string {
+  const recency = `newer_than:${days}d`;
+  const queryA = `${recency} (StreetEasy OR Zillow OR RealtyMX OR apartment OR rental OR showing OR interested)`;
+  const queryB = `${recency} subject:(inquiry)`;
+  const queryC = `${recency} (\"Is this still available\" OR \"schedule a showing\" OR \"interested in\")`;
+  return `${queryA} OR ${queryB} OR ${queryC}`;
 }
 
 function filterBySource(messages: GmailInquiryMessage[], filter: GmailInquirySourceFilter) {
@@ -178,7 +377,7 @@ function filterBySource(messages: GmailInquiryMessage[], filter: GmailInquirySou
   return messages.filter((message) => message.sourceFilter === filter);
 }
 
-function buildMimeMessage(input: GmailDraftRequest) {
+export function buildMimeMessage(input: GmailDraftRequest) {
   const mime = [
     `To: ${input.to}`,
     `Subject: ${input.subject}`,
@@ -241,6 +440,26 @@ async function getStoredConnection(userId: string): Promise<
   }
 }
 
+async function setConnectionLastError(userId: string, lastError: string | null) {
+  if (!process.env.DATABASE_URL) {
+    const store = getFallbackStore();
+    const connection = store.gmailConnections.find((item) => item.userId === userId && item.isActive);
+    if (connection) {
+      connection.lastError = lastError;
+    }
+    return;
+  }
+
+  await prisma.gmailConnection.updateMany({
+    where: {
+      userId,
+      provider: "GOOGLE",
+      isActive: true,
+    },
+    data: { lastError },
+  });
+}
+
 async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
   const encryptedAccess = encryptToken(tokenPayload.accessToken);
   const encryptedRefresh = tokenPayload.refreshToken ? encryptToken(tokenPayload.refreshToken) : null;
@@ -266,6 +485,15 @@ async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
     return;
   }
 
+  const existing = await prisma.gmailConnection.findUnique({
+    where: {
+      userId_provider: {
+        userId,
+        provider: "GOOGLE",
+      },
+    },
+  });
+
   await prisma.gmailConnection.upsert({
     where: {
       userId_provider: {
@@ -277,10 +505,10 @@ async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
       email: tokenPayload.email,
       isActive: true,
       accessTokenEncrypted: encryptedAccess,
-      refreshTokenEncrypted: encryptedRefresh,
-      scope: tokenPayload.scope,
-      tokenType: tokenPayload.tokenType,
-      expiresAt: tokenPayload.expiryDate ? new Date(tokenPayload.expiryDate) : null,
+      refreshTokenEncrypted: encryptedRefresh ?? existing?.refreshTokenEncrypted ?? null,
+      scope: tokenPayload.scope ?? existing?.scope ?? null,
+      tokenType: tokenPayload.tokenType ?? existing?.tokenType ?? null,
+      expiresAt: tokenPayload.expiryDate ? new Date(tokenPayload.expiryDate) : existing?.expiresAt ?? null,
       lastError: null,
     },
     create: {
@@ -297,7 +525,10 @@ async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
   });
 }
 
-async function buildAuthorizedClient(userId: string) {
+async function buildAuthorizedClient(
+  userId: string,
+  options?: { forceRefresh?: boolean },
+) {
   const connection = await getStoredConnection(userId);
   if (!connection) {
     return null;
@@ -310,9 +541,24 @@ async function buildAuthorizedClient(userId: string) {
     expiry_date: connection.expiresAt ? new Date(connection.expiresAt).getTime() : undefined,
   });
 
+  const hasRefreshToken = Boolean(connection.refreshTokenEncrypted);
+  if (!hasRefreshToken) {
+    await setConnectionLastError(
+      userId,
+      "No refresh token available for connected Gmail account. Reconnect with consent prompt.",
+    );
+  }
+
   const expiresAtMs = connection.expiresAt ? new Date(connection.expiresAt).getTime() : 0;
-  if (expiresAtMs > 0 && expiresAtMs <= Date.now() + 60_000) {
+  const shouldRefresh =
+    options?.forceRefresh ||
+    (expiresAtMs > 0 && expiresAtMs <= Date.now() + 60_000);
+
+  if (shouldRefresh) {
     try {
+      if (!hasRefreshToken) {
+        throw new Error("No refresh token found for this Gmail connection.");
+      }
       const refreshed = await oauthClient.refreshAccessToken();
       await saveConnection(userId, {
         accessToken: refreshed.credentials.access_token ?? decryptToken(connection.accessTokenEncrypted),
@@ -323,7 +569,10 @@ async function buildAuthorizedClient(userId: string) {
         email: connection.email,
       });
       oauthClient.setCredentials(refreshed.credentials);
-    } catch {
+      await setConnectionLastError(userId, null);
+    } catch (error) {
+      const normalized = normalizeGmailError(error);
+      await setConnectionLastError(userId, normalized.message);
       return null;
     }
   }
@@ -337,21 +586,26 @@ function messageToInquiry(message: {
   payload?: {
     headers?: Array<{ name?: string; value?: string }>;
     mimeType?: string;
+    filename?: string;
     body?: { data?: string | null };
-    parts?: Array<{
-      mimeType?: string;
-      body?: { data?: string | null };
-      parts?: unknown[];
-    }>;
+    parts?: GmailPayloadPart[];
   };
   internalDate?: string;
   snippet?: string;
-}): GmailInquiryMessage {
+}): GmailInquiryMessageDetail {
   const headers = message.payload?.headers ?? [];
+  const headerMap = headers.reduce<Record<string, string>>((acc, header) => {
+    const key = header.name?.toLowerCase();
+    if (key && header.value) {
+      acc[key] = header.value;
+    }
+    return acc;
+  }, {});
   const subject = headers.find((header) => header.name?.toLowerCase() === "subject")?.value ?? "(no subject)";
   const fromHeader = headers.find((header) => header.name?.toLowerCase() === "from")?.value ?? "unknown@example.com";
   const from = parseFromHeader(fromHeader);
-  const bodyText = extractBodyText(message.payload ?? {}) || message.snippet || "";
+  const extracted = extractMessageBodies(message.payload ?? {});
+  const bodyText = extracted.plainTextBody || message.snippet || "";
   const listingLinks = Array.from(bodyText.matchAll(/https?:\/\/\S+/g)).map((match) => match[0]);
   const detection = detectInquirySource({
     sender: from.email,
@@ -365,6 +619,8 @@ function messageToInquiry(message: {
     threadId: message.threadId,
     subject,
     bodyText,
+    htmlBody: extracted.htmlBody,
+    snippet: message.snippet ?? bodyText.slice(0, 200),
     fromEmail: from.email,
     fromName: from.name,
     receivedAt: message.internalDate ? new Date(Number(message.internalDate)).toISOString() : new Date().toISOString(),
@@ -373,20 +629,28 @@ function messageToInquiry(message: {
     sourceConfidence: detection.confidence,
     isInquiry: detection.isInquiry,
     listingLink: listingLinks[0],
+    headers: headerMap,
+    rawPayload: message.payload,
   };
 }
 
-async function listRealGmailMessages(userId: string, limit = 20): Promise<GmailInquiryMessage[]> {
-  const auth = await buildAuthorizedClient(userId);
+async function listRealGmailMessages(input: {
+  userId: string;
+  limit?: number;
+  query?: string;
+}): Promise<GmailInquiryMessage[]> {
+  const limit = input.limit ?? 20;
+  const auth = await buildAuthorizedClient(input.userId);
   if (!auth) {
     return [];
   }
 
   const gmail = google.gmail({ version: "v1", auth });
+  const query = input.query ?? buildGmailQuery(30);
   const listResponse = await gmail.users.messages.list({
     userId: "me",
     maxResults: limit,
-    q: "newer_than:30d",
+    q: query,
   });
 
   const ids = listResponse.data.messages?.map((message) => message.id).filter(Boolean) as string[];
@@ -424,13 +688,48 @@ async function listMockMessages(): Promise<GmailInquiryMessage[]> {
   return messages;
 }
 
-export async function getGmailConnectionState(userId: string): Promise<{
-  mode: "LIVE" | "MOCK";
-  configured: boolean;
-  connected: boolean;
-  connection?: GmailConnectionRecord | null;
-  message: string;
-}> {
+async function getRealMessage(userId: string, messageId: string): Promise<GmailInquiryMessageDetail | null> {
+  const auth = await buildAuthorizedClient(userId);
+  if (!auth) {
+    return null;
+  }
+
+  const gmail = google.gmail({ version: "v1", auth });
+  const response = await gmail.users.messages.get({
+    userId: "me",
+    id: messageId,
+    format: "full",
+  });
+  const message = response.data;
+  if (!message.id || !message.threadId) {
+    return null;
+  }
+
+  return messageToInquiry({
+    id: message.id,
+    threadId: message.threadId,
+    payload: message.payload as any,
+    internalDate: message.internalDate ?? undefined,
+    snippet: message.snippet ?? undefined,
+  });
+}
+
+async function getMockMessage(messageId: string): Promise<GmailInquiryMessageDetail | null> {
+  const message = (await listMockMessages()).find((item) => item.id === messageId);
+  if (!message) {
+    return null;
+  }
+  return {
+    ...message,
+    headers: {
+      from: message.fromName ? `${message.fromName} <${message.fromEmail}>` : message.fromEmail,
+      subject: message.subject,
+      date: message.receivedAt,
+    },
+  };
+}
+
+export async function getGmailConnectionState(userId: string): Promise<GmailConnectionState> {
   const configured = isGoogleEnvConfigured();
   const connection = configured ? await getStoredConnection(userId) : null;
 
@@ -458,7 +757,21 @@ export async function getGmailConnectionState(userId: string): Promise<{
     mode: "LIVE",
     configured: true,
     connected: true,
-    connection,
+    connection: connection
+      ? {
+          id: connection.id,
+          userId: connection.userId,
+          provider: connection.provider,
+          email: connection.email,
+          isActive: connection.isActive,
+          expiresAt: connection.expiresAt,
+          scope: connection.scope,
+          tokenType: connection.tokenType,
+          accessTokenExists: Boolean(connection.accessTokenEncrypted),
+          refreshTokenExists: Boolean(connection.refreshTokenEncrypted),
+          lastError: connection.lastError,
+        }
+      : null,
     message: `Connected Gmail account: ${connection.email ?? "Unknown"}`,
   };
 }
@@ -468,6 +781,7 @@ export function buildGoogleOAuthUrl(state: string) {
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
+    include_granted_scopes: true,
     scope: GOOGLE_SCOPES,
     state,
   });
@@ -491,6 +805,13 @@ export async function completeGoogleOAuth(code: string, userId: string) {
     throw new Error("Google OAuth response did not include an access token.");
   }
 
+  const existing = await getStoredConnection(userId);
+  if (!tokens.tokens.refresh_token && !existing?.refreshTokenEncrypted) {
+    const normalized = normalizeGmailError("No refresh token returned by Google OAuth callback.");
+    await setConnectionLastError(userId, normalized.message);
+    throw new Error(normalized.message);
+  }
+
   await saveConnection(userId, {
     accessToken: tokens.tokens.access_token,
     refreshToken: tokens.tokens.refresh_token,
@@ -499,6 +820,7 @@ export async function completeGoogleOAuth(code: string, userId: string) {
     expiryDate: tokens.tokens.expiry_date,
     email,
   });
+  await setConnectionLastError(userId, null);
 
   return { email };
 }
@@ -507,6 +829,7 @@ export async function fetchGmailInquiryMessages(input: {
   userId: string;
   sourceFilter?: GmailInquirySourceFilter;
   includeNonInquiry?: boolean;
+  query?: string;
 }): Promise<{
   mode: "LIVE" | "MOCK";
   connectionState: Awaited<ReturnType<typeof getGmailConnectionState>>;
@@ -525,16 +848,19 @@ export async function fetchGmailInquiryMessages(input: {
 
   if (connectionState.mode === "LIVE") {
     try {
-      baseMessages = await listRealGmailMessages(input.userId);
+      baseMessages = await listRealGmailMessages({
+        userId: input.userId,
+        query: input.query,
+      });
+      await setConnectionLastError(input.userId, null);
     } catch (error) {
       baseMessages = await listMockMessages();
+      const normalized = normalizeGmailError(error);
+      await setConnectionLastError(input.userId, normalized.message);
       connectionState = {
         ...connectionState,
         mode: "MOCK",
-        message:
-          error instanceof Error
-            ? `Gmail fetch failed: ${error.message}. Falling back to mock mode.`
-            : "Gmail fetch failed. Falling back to mock mode.",
+        message: `${normalized.message} Falling back to mock mode.`,
       };
     }
   } else {
@@ -625,44 +951,76 @@ export async function importSelectedGmailMessages(input: {
     }
 
     const status: LeadRecord["status"] = parsed.missingFields.length > 0 ? "NEEDS_REVIEW" : "IMPORTED";
-    const lead = await createLead({
-      clientName: parsed.clientName,
-      email: parsed.clientEmail,
-      phone: parsed.phone,
-      originalSender: parsed.originalSender,
-      inquirySubject: parsed.subject,
-      source: parsed.inquirySource,
-      inquiryMessage: parsed.body,
-      listingId: listingMatch.listingId,
-      desiredMoveInDate: parsed.desiredMoveInDate,
-      budget: parsed.budget,
-      pets: parsed.pets,
-      occupants: parsed.occupants,
-      annualIncome: parsed.annualIncome,
-      employmentDetails: parsed.employmentDetails,
-      needsGuarantor: parsed.needsGuarantor,
-      voucherProgram: parsed.voucherProgram,
-      showingAvailability: parsed.showingAvailability,
-      gmailMessageId: parsed.gmailMessageId,
-      gmailThreadId: parsed.gmailThreadId,
-      gmailImportedAt: message.receivedAt,
-      sourceDetectionResult: message.source,
-      sourceDetectionConfidence: message.sourceConfidence,
-      listingMatchConfidence: listingMatch.confidence,
-      listingMatchReason: listingMatch.reason,
-      missingFields: parsed.missingFields,
-      status,
-      parsedFields: {
-        listingAddress: parsed.listingAddress,
-        apartmentNumber: parsed.apartmentNumber,
-        listingLinks: parsed.listingLinks,
-      },
-    });
+    let lead: LeadRecord;
+    try {
+      lead = await createLead({
+        clientName: parsed.clientName,
+        email: parsed.clientEmail,
+        phone: parsed.phone,
+        originalSender: parsed.originalSender,
+        inquirySubject: parsed.subject,
+        source: parsed.inquirySource,
+        inquiryMessage: parsed.body,
+        listingId: listingMatch.listingId,
+        desiredMoveInDate: parsed.desiredMoveInDate,
+        budget: parsed.budget,
+        pets: parsed.pets,
+        occupants: parsed.occupants,
+        annualIncome: parsed.annualIncome,
+        employmentDetails: parsed.employmentDetails,
+        needsGuarantor: parsed.needsGuarantor,
+        voucherProgram: parsed.voucherProgram,
+        showingAvailability: parsed.showingAvailability,
+        gmailMessageId: parsed.gmailMessageId,
+        gmailThreadId: parsed.gmailThreadId,
+        gmailImportedAt: message.receivedAt,
+        sourceDetectionResult: message.source,
+        sourceDetectionConfidence: message.sourceConfidence,
+        listingMatchConfidence: listingMatch.confidence,
+        listingMatchReason: listingMatch.reason,
+        missingFields: parsed.missingFields,
+        status,
+        parsedFields: {
+          listingAddress: parsed.listingAddress,
+          apartmentNumber: parsed.apartmentNumber,
+          listingLinks: parsed.listingLinks,
+          rawSubject: message.subject,
+          plainTextBody: message.bodyText,
+          htmlBody: message.htmlBody ?? null,
+          snippet: message.snippet ?? null,
+          sender: message.fromName ?? message.fromEmail,
+          senderEmail: message.fromEmail,
+          receivedAt: message.receivedAt,
+          gmailMessageId: message.id,
+          gmailThreadId: message.threadId,
+        },
+      });
+    } catch (error) {
+      const normalized = normalizeGmailError(error);
+      if (normalized.code === "database_duplicate") {
+        const existing = await findLeadByGmailIdentifiers({
+          gmailMessageId: parsed.gmailMessageId,
+          gmailThreadId: parsed.gmailThreadId,
+          email: parsed.clientEmail,
+        });
+        if (existing) {
+          outcomes.push({
+            messageId: message.id,
+            leadId: existing.id,
+            duplicate: true,
+            duplicateReason: "gmail_message_id",
+          });
+          continue;
+        }
+      }
+      await setConnectionLastError(input.userId, normalized.message);
+      throw new Error(normalized.message);
+    }
 
     await addInboundMessageFromImport({
       leadId: lead.id,
       subject: parsed.subject,
-      bodyText: parsed.body,
+      bodyText: message.bodyText || parsed.body,
       senderEmail: parsed.clientEmail,
       recipientEmail: "leasing@sovereignnyc.com",
       gmailMessageId: parsed.gmailMessageId,
@@ -738,6 +1096,9 @@ AI-generated draft
 Review before sending
 Do not rely on AI for final applicant approval
 
+AI assistant suggestion:
+${aiReply.content}
+
 Additional missing info to request:
 ${missingAnalysis.content}`;
 
@@ -764,27 +1125,36 @@ ${missingAnalysis.content}`;
   if (connection.mode === "LIVE") {
     const auth = await buildAuthorizedClient(input.userId);
     if (!auth) {
-      throw new Error("Connected Gmail credentials are unavailable or expired.");
+      const normalized = normalizeGmailError("Connected Gmail credentials are unavailable or expired.");
+      await setConnectionLastError(input.userId, normalized.message);
+      throw new Error(normalized.message);
     }
 
-    const gmail = google.gmail({ version: "v1", auth });
-    const response = await gmail.users.drafts.create({
-      userId: "me",
-      requestBody: {
-        message: {
-          threadId: request.threadId,
-          raw: buildMimeMessage(request),
+    try {
+      const gmail = google.gmail({ version: "v1", auth });
+      const response = await gmail.users.drafts.create({
+        userId: "me",
+        requestBody: {
+          message: {
+            threadId: request.threadId,
+            raw: buildMimeMessage(request),
+          },
         },
-      },
-    });
+      });
 
-    draftResult = {
-      provider: "GOOGLE",
-      draftId: response.data.id ?? makeId("gmail_draft"),
-      threadId: request.threadId,
-      subject: request.subject,
-      body: request.body,
-    };
+      draftResult = {
+        provider: "GOOGLE",
+        draftId: response.data.id ?? makeId("gmail_draft"),
+        threadId: request.threadId,
+        subject: request.subject,
+        body: request.body,
+      };
+      await setConnectionLastError(input.userId, null);
+    } catch (error) {
+      const normalized = normalizeGmailError(error);
+      await setConnectionLastError(input.userId, normalized.message);
+      throw new Error(normalized.message);
+    }
   } else {
     const store = getFallbackStore();
     const draftId = makeId("mock_draft");
@@ -838,4 +1208,300 @@ ${missingAnalysis.content}`;
     aiMissingInfo: missingAnalysis.content,
     aiReplyModel: aiReply.model,
   };
+}
+
+export async function disconnectGmailConnection(userId: string) {
+  if (!process.env.DATABASE_URL) {
+    const store = getFallbackStore();
+    store.gmailConnections = store.gmailConnections.map((connection) =>
+      connection.userId === userId
+        ? {
+            ...connection,
+            isActive: false,
+            lastError: null,
+          }
+        : connection,
+    );
+    return;
+  }
+
+  await prisma.gmailConnection.updateMany({
+    where: {
+      userId,
+      provider: "GOOGLE",
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+      lastError: null,
+    },
+  });
+}
+
+export async function getGmailMessageDetail(input: {
+  userId: string;
+  messageId: string;
+}): Promise<GmailInquiryMessageDetail | null> {
+  const state = await getGmailConnectionState(input.userId);
+  const detail =
+    state.mode === "LIVE"
+      ? await getRealMessage(input.userId, input.messageId)
+      : await getMockMessage(input.messageId);
+  if (!detail) {
+    return null;
+  }
+
+  const [leads, listings] = await Promise.all([listLeads(), listListings()]);
+  const parsed = parseInquiryMessage(detail);
+  const listingMatch = matchListingForInquiry(listings, {
+    listingAddress: parsed.listingAddress,
+    apartmentNumber: parsed.apartmentNumber,
+    listingLinks: parsed.listingLinks,
+    budget: parsed.budget,
+    subject: parsed.subject,
+    body: parsed.body,
+  });
+  const duplicate = detectDuplicateLead(leads, {
+    gmailMessageId: detail.id,
+    gmailThreadId: detail.threadId,
+    email: detail.fromEmail,
+    listingId: listingMatch.listingId,
+    receivedAt: detail.receivedAt,
+  });
+  return {
+    ...detail,
+    importedLeadId: duplicate?.duplicateLead.id,
+    duplicateReason: duplicate?.reason,
+  };
+}
+
+export async function getGmailDebugSnapshot(userId: string) {
+  const state = await getGmailConnectionState(userId);
+  const oauth = validateOAuthConfig();
+  const grantedScopes = state.connection?.scope?.split(/\s+/).filter(Boolean) ?? [];
+
+  let tokenRefreshWorks: boolean | null = null;
+  let tokenRefreshMessage = "Not tested";
+
+  if (state.mode === "LIVE" && state.connection?.refreshTokenExists) {
+    const refreshed = await buildAuthorizedClient(userId, { forceRefresh: true });
+    tokenRefreshWorks = Boolean(refreshed);
+    tokenRefreshMessage = refreshed
+      ? "Refresh token exchange succeeded."
+      : "Refresh token exchange failed. Reconnect Gmail.";
+  } else if (state.mode === "LIVE" && !state.connection?.refreshTokenExists) {
+    tokenRefreshWorks = false;
+    tokenRefreshMessage = "No refresh token stored for this Gmail connection.";
+  }
+
+  return {
+    mode: state.mode,
+    configured: state.configured,
+    connected: state.connected,
+    connectedEmail: state.connection?.email ?? null,
+    accessTokenExists: state.connection?.accessTokenExists ?? false,
+    refreshTokenExists: state.connection?.refreshTokenExists ?? false,
+    tokenRefreshWorks,
+    tokenRefreshMessage,
+    grantedScopes,
+    currentRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? null,
+    requiredRedirectUri: oauth.requiredRedirectUri,
+    requiredScopes: oauth.scopes,
+    lastGmailApiError: state.connection?.lastError ?? null,
+    oauthConfigMissing: oauth.missing,
+    statusMessage: state.message,
+  };
+}
+
+export async function runGmailDebugAction(input: {
+  userId: string;
+  action:
+    | "test_connection"
+    | "list_recent_messages"
+    | "read_first_message"
+    | "run_mock_import_test"
+    | "disconnect_gmail";
+}) {
+  if (input.action === "disconnect_gmail") {
+    await disconnectGmailConnection(input.userId);
+    return {
+      action: input.action,
+      ok: true,
+      message: "Gmail connection disconnected.",
+    } satisfies GmailDebugResult;
+  }
+
+  if (input.action === "run_mock_import_test") {
+    const messages = await listMockMessages();
+    const firstInquiry = messages.find((message) => message.isInquiry);
+    if (!firstInquiry) {
+      return {
+        action: input.action,
+        ok: false,
+        message: "No mock inquiry message found.",
+      } satisfies GmailDebugResult;
+    }
+    const [outcome] = await importSelectedGmailMessages({
+      userId: input.userId,
+      actorId: input.userId,
+      messageIds: [firstInquiry.id],
+    });
+    return {
+      action: input.action,
+      ok: true,
+      message: outcome?.duplicate
+        ? "Mock import test completed; duplicate correctly blocked."
+        : "Mock import test completed; lead created successfully.",
+      data: outcome ?? {},
+    } satisfies GmailDebugResult;
+  }
+
+  const state = await getGmailConnectionState(input.userId);
+  if (input.action === "test_connection") {
+    if (state.mode === "MOCK") {
+      return {
+        action: input.action,
+        ok: true,
+        message: "Mock mode active. No real Gmail connection required.",
+      } satisfies GmailDebugResult;
+    }
+
+    const auth = await buildAuthorizedClient(input.userId, { forceRefresh: true });
+    if (!auth) {
+      return {
+        action: input.action,
+        ok: false,
+        message: "Unable to authorize Gmail client. Reconnect account.",
+      } satisfies GmailDebugResult;
+    }
+    const gmail = google.gmail({ version: "v1", auth });
+    const profile = await gmail.users.getProfile({ userId: "me" });
+    return {
+      action: input.action,
+      ok: true,
+      message: "Gmail connection test succeeded.",
+      data: {
+        emailAddress: profile.data.emailAddress,
+        messagesTotal: profile.data.messagesTotal ?? 0,
+      },
+    } satisfies GmailDebugResult;
+  }
+
+  if (input.action === "list_recent_messages") {
+    const { messages } = await fetchGmailInquiryMessages({
+      userId: input.userId,
+      includeNonInquiry: true,
+    });
+    return {
+      action: input.action,
+      ok: true,
+      message: `Retrieved ${messages.length} messages.`,
+      data: {
+        firstMessageId: messages[0]?.id ?? null,
+        firstMessageSubject: messages[0]?.subject ?? null,
+      },
+    } satisfies GmailDebugResult;
+  }
+
+  const { messages } = await fetchGmailInquiryMessages({
+    userId: input.userId,
+    includeNonInquiry: true,
+  });
+  const first = messages[0];
+  if (!first) {
+    return {
+      action: input.action,
+      ok: false,
+      message: "No message found to read.",
+    } satisfies GmailDebugResult;
+  }
+  const detail = await getGmailMessageDetail({
+    userId: input.userId,
+    messageId: first.id,
+  });
+  return {
+    action: input.action,
+    ok: Boolean(detail),
+    message: detail ? "Read first message successfully." : "Unable to read first message.",
+    data: detail
+      ? {
+          id: detail.id,
+          subject: detail.subject,
+          fromEmail: detail.fromEmail,
+          snippet: detail.snippet,
+        }
+      : {},
+  } satisfies GmailDebugResult;
+}
+
+export const realGmailProvider: GmailProvider = {
+  async connectUrl(state: string) {
+    return buildGoogleOAuthUrl(state);
+  },
+  async getConnectionStatus(userId: string) {
+    return getGmailConnectionState(userId);
+  },
+  async listRecentMessages(input: { userId: string; limit?: number; query?: string }) {
+    return listRealGmailMessages(input);
+  },
+  async getMessage(input: { userId: string; messageId: string }) {
+    return getRealMessage(input.userId, input.messageId);
+  },
+  async importMessageAsLead(input: { userId: string; actorId?: string; messageId: string }) {
+    const [outcome] = await importSelectedGmailMessages({
+      userId: input.userId,
+      actorId: input.actorId,
+      messageIds: [input.messageId],
+    });
+    if (!outcome) {
+      throw new Error("No Gmail import outcome was returned.");
+    }
+    return outcome;
+  },
+  async createDraftReply(input) {
+    return createGmailDraftFromLead(input);
+  },
+  async disconnect(userId: string) {
+    await disconnectGmailConnection(userId);
+  },
+};
+
+export const mockGmailProvider: GmailProvider = {
+  async connectUrl() {
+    return `${getAppBaseUrl()}/gmail-import?oauth_error=${encodeURIComponent("Google OAuth is not configured. Using mock mode.")}`;
+  },
+  async getConnectionStatus(userId: string) {
+    return getGmailConnectionState(userId);
+  },
+  async listRecentMessages() {
+    return listMockMessages();
+  },
+  async getMessage(input: { userId: string; messageId: string }) {
+    return getMockMessage(input.messageId);
+  },
+  async importMessageAsLead(input: { userId: string; actorId?: string; messageId: string }) {
+    const [outcome] = await importSelectedGmailMessages({
+      userId: input.userId,
+      actorId: input.actorId,
+      messageIds: [input.messageId],
+    });
+    if (!outcome) {
+      throw new Error("No mock import outcome was returned.");
+    }
+    return outcome;
+  },
+  async createDraftReply(input) {
+    return createGmailDraftFromLead(input);
+  },
+  async disconnect(userId: string) {
+    await disconnectGmailConnection(userId);
+  },
+};
+
+export async function resolveGmailProvider(userId: string): Promise<GmailProvider> {
+  if (!isGoogleEnvConfigured()) {
+    return mockGmailProvider;
+  }
+  const state = await getGmailConnectionState(userId);
+  return state.mode === "LIVE" ? realGmailProvider : mockGmailProvider;
 }
