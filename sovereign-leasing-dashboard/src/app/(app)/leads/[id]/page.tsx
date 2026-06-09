@@ -40,7 +40,16 @@ export default async function LeadDetailPage({
   const { id } = await params;
   const pageParams = (await searchParams) ?? {};
 
-  const [lead, listings, notes, history, templates, team, qualifications, activity] = await Promise.all([
+  const [lead, listings, notes, history, templates, team, qualifications, activity]: [
+    Awaited<ReturnType<typeof getLeadById>>,
+    Awaited<ReturnType<typeof listListings>>,
+    Awaited<ReturnType<typeof listLeadNotes>>,
+    Awaited<ReturnType<typeof listLeadMessages>>,
+    Awaited<ReturnType<typeof listTemplates>>,
+    Awaited<ReturnType<typeof listTeamMembers>>,
+    Awaited<ReturnType<typeof listLeadQualifications>>,
+    Awaited<ReturnType<typeof listLeadActivityLog>>,
+  ] = await Promise.all([
     getLeadById(id),
     listListings(),
     listLeadNotes(id),
