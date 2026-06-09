@@ -80,11 +80,25 @@ enum FollowUpState {
   COMPLETED
 }
 
+enum FollowUpStage {
+  INITIAL_REPLY
+  FOLLOW_UP_1
+  FOLLOW_UP_2
+  FINAL_FOLLOW_UP
+  STALE_RECOMMENDED
+  ARCHIVED
+}
+
 enum ShowingStatus {
-  REQUESTED
-  CONFIRMED
-  CANCELLED
-  COMPLETED
+  NOT_REQUESTED
+  SHOWING_REQUESTED
+  TIMES_OFFERED
+  SHOWING_CONFIRMED
+  SHOWING_COMPLETED
+  NO_SHOW
+  RESCHEDULE_NEEDED
+  APPLICATION_REQUESTED
+  ARCHIVED
 }
 
 enum AiRecommendationType {
@@ -183,7 +197,27 @@ model Lead {
   parsedFields          Json?
   recommendedNextAction String?
   assignedAgentId       String?
+  showingAgentId        String?
   followUpDate          DateTime?
+  lastContactedAt       DateTime?
+  lastClientReplyAt     DateTime?
+  nextFollowUpAt        DateTime?
+  followUpStage         FollowUpStage       @default(INITIAL_REPLY)
+  followUpPaused        Boolean             @default(false)
+  followUpPauseReason   String?
+  followUpSequenceId    String?
+  followUpAttemptCount  Int                 @default(0)
+  showingStatus         ShowingStatus       @default(NOT_REQUESTED)
+  requestedShowingTimes Json?
+  offeredShowingTimes   Json?
+  confirmedShowingAt    DateTime?
+  showingLocation       String?
+  accessInstructions    String?
+  showingNotes          String?
+  showedAt              DateTime?
+  noShowReason          String?
+  postShowingNotes      String?
+  applicationInstructionsDraftedAt DateTime?
   lastResponseAt        DateTime?
   receivedAt            DateTime            @default(now())
   createdAt             DateTime            @default(now())
@@ -201,6 +235,8 @@ model Lead {
   @@index([status])
   @@index([source])
   @@index([assignedAgentId])
+  @@index([showingAgentId])
+  @@index([nextFollowUpAt])
   @@index([gmailThreadId])
 }
 
@@ -283,6 +319,7 @@ model FollowUpSequence {
   id         String        @id @default(cuid())
   name       String
   listingId  String?
+  source     InquirySource?
   leadStatus LeadStatus?
   state      FollowUpState @default(ACTIVE)
   createdAt  DateTime      @default(now())

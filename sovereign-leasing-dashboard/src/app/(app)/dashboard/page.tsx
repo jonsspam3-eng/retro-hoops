@@ -19,6 +19,9 @@ export default async function DashboardPage() {
         <p className="mt-1 text-sm text-[#6d6f78]">
           Centralized queue for inbound inquiries, qualification, and agent handoff.
         </p>
+        <Link href="/pipeline" className="mt-2 inline-flex rounded-lg bg-[#ddbda2] px-3 py-2 text-sm font-medium text-[#050b23] hover:bg-[#d4ae8d]">
+          Open Phase 3 Pipeline
+        </Link>
         {isFallbackMode() ? (
           <p className="mt-2 rounded-lg bg-amber-100 px-3 py-2 text-xs text-amber-900">
             Running in fallback demo mode because DATABASE_URL is not configured or unavailable.

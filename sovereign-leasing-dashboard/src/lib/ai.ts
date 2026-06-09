@@ -15,6 +15,8 @@ interface AiProvider {
   summarizeLead(context: AiContext): Promise<AiOutput>;
   draftReply(context: AiContext): Promise<AiOutput>;
   findMissingInfo(context: AiContext): Promise<AiOutput>;
+  recommendNextAction(context: AiContext): Promise<AiOutput>;
+  draftShowingConfirmation(context: AiContext): Promise<AiOutput>;
 }
 
 class MockProvider implements AiProvider {
@@ -74,6 +76,47 @@ class MockProvider implements AiProvider {
     return {
       content: missing.length ? `Missing: ${missing.join(", ")}.` : "No critical qualification fields are missing.",
       rationale: "Compared required qualification checklist against available lead data.",
+      model: "mock-rule-based-v1",
+    };
+  }
+
+  async recommendNextAction({ lead }: AiContext): Promise<AiOutput> {
+    let suggested = "Continue qualification review.";
+    if (lead.status === "QUALIFIED" && (!lead.showingStatus || lead.showingStatus === "NOT_REQUESTED")) {
+      suggested = "Offer showing windows and assign a showing agent.";
+    } else if (lead.followUpPaused) {
+      suggested = "Follow-up paused. Confirm pause reason and resume when appropriate.";
+    } else if (lead.nextFollowUpAt) {
+      suggested = "Generate follow-up draft and complete the scheduled follow-up.";
+    } else if (lead.status === "DRAFT_CREATED") {
+      suggested = "Review draft and create Gmail draft for human approval.";
+    }
+
+    return {
+      content: [
+        "AI Recommendation:",
+        "Human Review Required.",
+        `Suggested Next Action: ${suggested}`,
+      ].join(" "),
+      rationale: "Rule-based recommendation from current follow-up, status, and showing fields.",
+      model: "mock-rule-based-v1",
+    };
+  }
+
+  async draftShowingConfirmation({ lead, listing }: AiContext): Promise<AiOutput> {
+    const lines = [
+      `Hi ${lead.clientName},`,
+      "",
+      `AI Recommendation: showing confirmation draft for ${listing ? `${listing.address} ${listing.apartmentNumber}` : "the listing"}.`,
+      "Human Review Required before sending.",
+      "Suggested Next Action: confirm date/time and access instructions in Gmail draft mode.",
+      "",
+      "Best,",
+      "Sovereign Realty NYC Leasing Team",
+    ];
+    return {
+      content: lines.join("\n"),
+      rationale: "Rule-based showing confirmation draft with human-review language.",
       model: "mock-rule-based-v1",
     };
   }
@@ -139,6 +182,22 @@ class OpenAiProvider implements AiProvider {
 
     return { content, rationale: "AI missing-info detection using OpenAI.", model: "openai:gpt-4.1-mini" };
   }
+
+  async recommendNextAction(context: AiContext): Promise<AiOutput> {
+    const content = await callOpenAi(
+      "You are an advisory leasing assistant. Never make approval/rejection decisions. Always include 'AI Recommendation', 'Human Review Required', and 'Suggested Next Action'.",
+      `Recommend the next action for this lead: ${JSON.stringify(context)}`,
+    );
+    return { content, rationale: "AI next-action recommendation using OpenAI.", model: "openai:gpt-4.1-mini" };
+  }
+
+  async draftShowingConfirmation(context: AiContext): Promise<AiOutput> {
+    const content = await callOpenAi(
+      "Draft showing-confirmation language for leasing. Human review required. Do not auto-send.",
+      `Draft showing confirmation language for this lead context: ${JSON.stringify(context)}`,
+    );
+    return { content, rationale: "AI showing confirmation draft using OpenAI.", model: "openai:gpt-4.1-mini" };
+  }
 }
 
 function getProvider(): AiProvider {
@@ -159,4 +218,12 @@ export async function generateAiReplyDraft(context: AiContext): Promise<AiOutput
 
 export async function generateMissingInfoAnalysis(context: AiContext): Promise<AiOutput> {
   return getProvider().findMissingInfo(context);
+}
+
+export async function generateAiNextActionRecommendation(context: AiContext): Promise<AiOutput> {
+  return getProvider().recommendNextAction(context);
+}
+
+export async function generateAiShowingConfirmationDraft(context: AiContext): Promise<AiOutput> {
+  return getProvider().draftShowingConfirmation(context);
 }

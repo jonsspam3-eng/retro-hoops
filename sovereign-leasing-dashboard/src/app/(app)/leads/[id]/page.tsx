@@ -1,13 +1,34 @@
 import {
   addLeadNoteAction,
+  archiveLeadFromPipelineAction,
   assignLeadAction,
   assignLeadListingAction,
+  confirmShowingAction,
+  createGmailFollowUpDraftAction,
   createGmailDraftForLeadAction,
+  draftApplicationInstructionsAction,
   evaluateLeadAction,
+  generateFollowUpDraftAction,
+  markFollowUpCompletedAction,
+  markLeadStaleAction,
+  markNoShowAction,
+  markShowingCompletedAction,
+  markShowingRequestedAction,
+  offerShowingTimesAction,
+  pauseFollowUpsAction,
   regenerateAiDraftAction,
+  requestRescheduleAction,
+  resumeFollowUpsAction,
   updateLeadStatusAction,
 } from "@/lib/actions";
-import { generateAiSummary, generateMissingInfoAnalysis } from "@/lib/ai";
+import {
+  generateAiNextActionRecommendation,
+  generateAiShowingConfirmationDraft,
+  generateAiSummary,
+  generateMissingInfoAnalysis,
+} from "@/lib/ai";
+import { createShowingEventPlaceholder } from "@/lib/calendar";
+import { detectPauseReason } from "@/lib/follow-up";
 import { CopyDraftButton } from "@/components/copy-draft-button";
 import { StatusPill } from "@/components/status-pill";
 import {
@@ -20,7 +41,7 @@ import {
   listTeamMembers,
   listTemplates,
 } from "@/lib/repository";
-import { leadStatuses } from "@/lib/types";
+import { leadStatuses, showingStatuses } from "@/lib/types";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +88,20 @@ export default async function LeadDetailPage({
   const listing = listings.find((item) => item.id === lead.listingId);
   const aiSummary = await generateAiSummary({ lead, listing });
   const aiMissing = await generateMissingInfoAnalysis({ lead, listing });
+  const aiNextAction = await generateAiNextActionRecommendation({ lead, listing });
+  const aiShowingDraft = await generateAiShowingConfirmationDraft({ lead, listing });
+  const derivedPauseReason = detectPauseReason({ lead, listing }) ?? lead.followUpPauseReason;
+  const calendarPlaceholder = await createShowingEventPlaceholder({
+    leadId: lead.id,
+    title: `Showing placeholder · ${lead.clientName}`,
+    startsAt: lead.confirmedShowingAt,
+    location: lead.showingLocation,
+    notes: "Phase 3 placeholder only. No external event sync yet.",
+  });
   const activeTemplate = templates[0];
+  const followUpTemplate =
+    templates.find((template) => template.id === "template_followup_24h") ??
+    templates.find((template) => template.category === "FOLLOW_UP");
   const draftBody = lead.lastAiDraft ?? aiMissing.content;
 
   return (
@@ -176,6 +210,14 @@ export default async function LeadDetailPage({
             <p className="mt-1 text-sm text-[#6d6f78]">Score: {lead.score ?? "Not scored"}</p>
             <p className="mt-2 text-sm">{lead.qualificationReason ?? "No evaluation notes available yet."}</p>
             <p className="mt-2 text-sm font-medium">Recommended next action: {lead.recommendedNextAction ?? "Run qualification to generate recommendation."}</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+              <p><span className="font-semibold">Follow-up stage:</span> {(lead.followUpStage ?? "INITIAL_REPLY").replaceAll("_", " ")}</p>
+              <p><span className="font-semibold">Next follow-up:</span> {formatIso(lead.nextFollowUpAt)}</p>
+              <p><span className="font-semibold">Follow-up paused:</span> {lead.followUpPaused ? "Yes" : "No"}</p>
+              <p><span className="font-semibold">Pause reason:</span> {derivedPauseReason ?? "N/A"}</p>
+              <p><span className="font-semibold">Follow-up attempts:</span> {lead.followUpAttemptCount ?? 0}</p>
+              <p><span className="font-semibold">Showing status:</span> {(lead.showingStatus ?? "NOT_REQUESTED").replaceAll("_", " ")}</p>
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <form action={evaluateLeadAction}>
                 <input type="hidden" name="leadId" value={lead.id} />
@@ -269,6 +311,113 @@ export default async function LeadDetailPage({
             <div className="mt-2 rounded-xl bg-[#f8f6f3] p-3 text-sm">
               <p className="font-semibold">Missing info check</p>
               <p className="mt-1 whitespace-pre-wrap">{aiMissing.content}</p>
+            </div>
+            <div className="mt-2 rounded-xl bg-[#f8f6f3] p-3 text-sm">
+              <p className="font-semibold">AI Recommendation</p>
+              <p className="mt-1 whitespace-pre-wrap">{aiNextAction.content}</p>
+            </div>
+            <div className="mt-2 rounded-xl bg-[#f8f6f3] p-3 text-sm">
+              <p className="font-semibold">Showing confirmation language</p>
+              <p className="mt-1 whitespace-pre-wrap">{aiShowingDraft.content}</p>
+            </div>
+            <p className="mt-2 text-xs text-[#6d6f78]">Human Review Required. AI remains advisory only.</p>
+          </div>
+
+          <div className="card space-y-3">
+            <h3 className="text-lg font-semibold">Follow-up controls</h3>
+            <p className="text-xs text-[#6d6f78]">Draft-only workflow. No auto-send.</p>
+            <div className="rounded-xl border border-[#ece8e3] bg-[#f8f6f3] p-3 text-sm">
+              <p className="font-semibold">Copy Follow-Up Text</p>
+              <p className="mt-1 whitespace-pre-wrap">{draftBody}</p>
+              <div className="mt-2">
+                <CopyDraftButton text={draftBody} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <form action={generateFollowUpDraftAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <button type="submit">Generate Follow-Up Draft</button>
+              </form>
+              <form action={createGmailFollowUpDraftAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <input type="hidden" name="templateId" value={followUpTemplate?.id ?? ""} />
+                <input type="hidden" name="showingTimes" value={(lead.offeredShowingTimes ?? []).join(", ")} />
+                <input type="hidden" name="applicationLink" value="https://srealty.nyc/apply" />
+                <button type="submit">Create Gmail Draft Follow-Up</button>
+              </form>
+              <form action={markFollowUpCompletedAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <button type="submit">Mark Follow-Up Completed</button>
+              </form>
+              <form action={lead.followUpPaused ? resumeFollowUpsAction : pauseFollowUpsAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <input type="hidden" name="pauseReason" value="MANUAL_PAUSE" />
+                <button type="submit">{lead.followUpPaused ? "Resume Follow-Ups" : "Pause Follow-Ups"}</button>
+              </form>
+              <form action={markLeadStaleAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <button type="submit">Mark Lead Stale</button>
+              </form>
+              <form action={archiveLeadFromPipelineAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <button type="submit">Archive Lead</button>
+              </form>
+            </div>
+          </div>
+
+          <div className="card space-y-3">
+            <h3 className="text-lg font-semibold">Showing workflow</h3>
+            <p className="text-xs text-[#6d6f78]">Status: {(lead.showingStatus ?? "NOT_REQUESTED").replaceAll("_", " ")}</p>
+            <form action={markShowingRequestedAction} className="space-y-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+              <textarea name="requestedShowingTimes" rows={2} placeholder="Requested showing times (comma or newline separated)" defaultValue={(lead.requestedShowingTimes ?? []).join(", ")} />
+              <button type="submit">Mark Showing Requested</button>
+            </form>
+            <form action={offerShowingTimesAction} className="space-y-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+              <textarea name="offeredShowingTimes" rows={2} placeholder="Offered showing times" defaultValue={(lead.offeredShowingTimes ?? []).join(", ")} />
+              <button type="submit">Offer Showing Times</button>
+            </form>
+            <form action={confirmShowingAction} className="space-y-2">
+              <input type="hidden" name="leadId" value={lead.id} />
+              <input name="confirmedShowingAt" type="datetime-local" />
+              <select name="showingAgentId" defaultValue={lead.showingAgentId ?? ""}>
+                <option value="">Select showing agent</option>
+                {team
+                  .filter((member: { role: string }) => member.role === "AGENT" || member.role === "ADMIN")
+                  .map((member: { id: string; name: string }) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+              </select>
+              <input name="showingLocation" placeholder="Showing location" defaultValue={lead.showingLocation ?? ""} />
+              <textarea name="accessInstructions" rows={2} placeholder="Access instructions" defaultValue={lead.accessInstructions ?? ""} />
+              <button type="submit">Confirm Showing</button>
+            </form>
+            <div className="grid grid-cols-2 gap-2">
+              <form action={markShowingCompletedAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <input type="hidden" name="postShowingNotes" value={lead.postShowingNotes ?? ""} />
+                <button type="submit">Mark Showing Completed</button>
+              </form>
+              <form action={markNoShowAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <input type="hidden" name="noShowReason" value="Client did not attend confirmed showing time." />
+                <button type="submit">Mark No-Show</button>
+              </form>
+              <form action={requestRescheduleAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <button type="submit">Request Reschedule</button>
+              </form>
+              <form action={draftApplicationInstructionsAction}>
+                <input type="hidden" name="leadId" value={lead.id} />
+                <button type="submit">Draft Application Instructions</button>
+              </form>
+            </div>
+            <div className="rounded-xl border border-[#ece8e3] bg-[#f8f6f3] p-3 text-xs text-[#6d6f78]">
+              <p>Calendar provider: {calendarPlaceholder.message}</p>
+              <p className="mt-1">Supported showing statuses: {showingStatuses.map((status) => status.replaceAll("_", " ")).join(", ")}</p>
             </div>
           </div>
 

@@ -14,6 +14,11 @@ export const templateVariables = [
   "{{apartment_number}}",
   "{{rent}}",
   "{{agent_name}}",
+  "{{agent_phone}}",
+  "{{missing_fields}}",
   "{{showing_times}}",
+  "{{showing_date}}",
+  "{{showing_time}}",
+  "{{access_instructions}}",
   "{{application_link}}",
 ];

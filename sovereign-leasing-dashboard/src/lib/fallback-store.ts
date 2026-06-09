@@ -1,5 +1,6 @@
 import {
   seedEmailMessages,
+  seedFollowUpSequences,
   seedLeadNotes,
   seedLeads,
   seedListings,
@@ -12,6 +13,7 @@ import {
 import type {
   AuditLogRecord,
   EmailTemplateRecord,
+  FollowUpSequenceRecord,
   GmailConnectionRecord,
   EmailThreadMessage,
   GmailInquiryMessage,
@@ -50,6 +52,7 @@ type InMemoryStore = {
     body: string;
     createdAt: string;
   }>;
+  followUpSequences: FollowUpSequenceRecord[];
 };
 
 const globalStore = globalThis as unknown as { __sovereignStore?: InMemoryStore };
@@ -72,6 +75,7 @@ function makeStore(): InMemoryStore {
     gmailConnections: [],
     mockGmailMessages: clone(seedMockGmailMessages),
     mockDrafts: [],
+    followUpSequences: clone(seedFollowUpSequences),
   };
 }
 

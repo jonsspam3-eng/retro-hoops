@@ -6,6 +6,11 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+function formatIso(value?: string | null) {
+  if (!value) return "N/A";
+  return value.replace("T", " ").slice(0, 16);
+}
+
 export default async function LeadsPage({
   searchParams,
 }: {
@@ -28,9 +33,14 @@ export default async function LeadsPage({
         <p className="mt-1 text-sm text-[#6d6f78]">
           Manual intake plus Gmail Phase 2 import workflow is available for inquiry ingestion and review.
         </p>
-        <a href="/gmail-import" className="mt-2 inline-flex rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]">
-          Open Gmail import dashboard
-        </a>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <a href="/gmail-import" className="inline-flex rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]">
+            Open Gmail import dashboard
+          </a>
+          <a href="/pipeline" className="inline-flex rounded-lg bg-[#ddbda2] px-3 py-2 text-sm font-medium text-[#050b23] hover:bg-[#d4ae8d]">
+            Open Follow-Up pipeline
+          </a>
+        </div>
       </div>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_360px]">
@@ -91,7 +101,7 @@ export default async function LeadsPage({
                       <StatusPill label={lead.status} />
                     </td>
                     <td className="py-2">{lead.score ?? "-"}</td>
-                    <td className="py-2">{new Date(lead.receivedAt).toLocaleString()}</td>
+                    <td className="py-2">{formatIso(lead.receivedAt)}</td>
                   </tr>
                 );
               })}

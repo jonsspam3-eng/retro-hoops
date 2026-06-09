@@ -19,6 +19,25 @@ export type LeadStatus =
 
 export type ListingStatus = "ACTIVE" | "PENDING" | "RENTED" | "INACTIVE";
 
+export type FollowUpStage =
+  | "INITIAL_REPLY"
+  | "FOLLOW_UP_1"
+  | "FOLLOW_UP_2"
+  | "FINAL_FOLLOW_UP"
+  | "STALE_RECOMMENDED"
+  | "ARCHIVED";
+
+export type ShowingWorkflowStatus =
+  | "NOT_REQUESTED"
+  | "SHOWING_REQUESTED"
+  | "TIMES_OFFERED"
+  | "SHOWING_CONFIRMED"
+  | "SHOWING_COMPLETED"
+  | "NO_SHOW"
+  | "RESCHEDULE_NEEDED"
+  | "APPLICATION_REQUESTED"
+  | "ARCHIVED";
+
 export type InquirySource =
   | "STREETEASY"
   | "ZILLOW"
@@ -113,7 +132,27 @@ export interface LeadRecord {
   completenessScore: number;
   recommendedNextAction?: string | null;
   assignedAgentId?: string | null;
+  showingAgentId?: string | null;
   followUpDate?: string | null;
+  lastContactedAt?: string | null;
+  lastClientReplyAt?: string | null;
+  nextFollowUpAt?: string | null;
+  followUpStage?: FollowUpStage;
+  followUpPaused?: boolean;
+  followUpPauseReason?: string | null;
+  followUpSequenceId?: string | null;
+  followUpAttemptCount?: number;
+  showingStatus?: ShowingWorkflowStatus;
+  requestedShowingTimes?: string[];
+  offeredShowingTimes?: string[];
+  confirmedShowingAt?: string | null;
+  showingLocation?: string | null;
+  accessInstructions?: string | null;
+  showingNotes?: string | null;
+  showedAt?: string | null;
+  noShowReason?: string | null;
+  postShowingNotes?: string | null;
+  applicationInstructionsDraftedAt?: string | null;
   receivedAt: string;
   parsedFields?: Record<string, unknown>;
 }
@@ -245,6 +284,33 @@ export type ImportOutcome = {
   duplicateReason?: string;
 };
 
+export interface FollowUpSequenceRecord {
+  id: string;
+  name: string;
+  listingId?: string | null;
+  source?: InquirySource | null;
+  leadStatus?: LeadStatus | null;
+  state: "ACTIVE" | "PAUSED" | "COMPLETED";
+  steps: Array<{
+    id: string;
+    stepOrder: number;
+    delayHours: number;
+    templateId?: string | null;
+    fallbackSubject?: string | null;
+    fallbackBody?: string | null;
+  }>;
+}
+
+export interface PipelineFilters {
+  agentId?: string;
+  listingId?: string;
+  source?: InquirySource | "ALL";
+  qualificationStatus?: LeadStatus | "ALL";
+  followUpStage?: FollowUpStage | "ALL";
+  due?: "ALL" | "DUE_TODAY" | "OVERDUE";
+  showingStatus?: ShowingWorkflowStatus | "ALL";
+}
+
 export const leadStatuses: LeadStatus[] = [
   "NEW",
   "IMPORTED",
@@ -273,6 +339,27 @@ export const inquirySources: InquirySource[] = [
   "EMAIL",
   "MANUAL",
   "OTHER",
+];
+
+export const followUpStages: FollowUpStage[] = [
+  "INITIAL_REPLY",
+  "FOLLOW_UP_1",
+  "FOLLOW_UP_2",
+  "FINAL_FOLLOW_UP",
+  "STALE_RECOMMENDED",
+  "ARCHIVED",
+];
+
+export const showingStatuses: ShowingWorkflowStatus[] = [
+  "NOT_REQUESTED",
+  "SHOWING_REQUESTED",
+  "TIMES_OFFERED",
+  "SHOWING_CONFIRMED",
+  "SHOWING_COMPLETED",
+  "NO_SHOW",
+  "RESCHEDULE_NEEDED",
+  "APPLICATION_REQUESTED",
+  "ARCHIVED",
 ];
 
 export const gmailSourceFilters: GmailInquirySourceFilter[] = [

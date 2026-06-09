@@ -13,8 +13,10 @@ import {
   getLeadById,
   listListings,
   saveLeadAiDraft,
+  updateLeadWorkflowState,
   updateLeadListing,
   updateLeadStatus,
+  upsertFollowUpSequence,
 } from "@/lib/repository";
 import { getAppSession } from "@/lib/auth";
 import {
@@ -24,6 +26,8 @@ import {
   runGmailDebugAction,
 } from "@/lib/gmail";
 import { generateAiReplyDraft } from "@/lib/ai";
+import { calculateNextFollowUpAt, determineFollowUpStage } from "@/lib/follow-up";
+import { assertShowingTransition } from "@/lib/showing-workflow";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -56,6 +60,13 @@ function assertAdmin(role?: string) {
   if (role !== "ADMIN") {
     throw new Error("Only admins can perform this action");
   }
+}
+
+function parseStringList(value: FormDataEntryValue | null): string[] {
+  return String(value ?? "")
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export async function createLeadAction(formData: FormData) {
@@ -215,6 +226,20 @@ export async function updateLeadStatusAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const status = requiredString(formData.get("status"), "Status") as never;
   await updateLeadStatus(leadId, status);
+  if (status === "ARCHIVED") {
+    await updateLeadWorkflowState(leadId, {
+      followUpPaused: true,
+      followUpPauseReason: "LEAD_ARCHIVED",
+      followUpStage: "ARCHIVED",
+      showingStatus: "ARCHIVED",
+    });
+  }
+  if (status === "NOT_QUALIFIED") {
+    await updateLeadWorkflowState(leadId, {
+      followUpPaused: true,
+      followUpPauseReason: "NOT_INTERESTED",
+    });
+  }
 
   await writeAuditLog({
     actorId: user.id,
@@ -393,6 +418,444 @@ export async function regenerateAiDraftAction(formData: FormData) {
   });
 
   revalidatePath(`/leads/${leadId}`);
+}
+
+export async function generateFollowUpDraftAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  const listings = await listListings();
+  const listing = listings.find((row) => row.id === lead.listingId);
+
+  const draft = await generateAiReplyDraft({ lead, listing });
+  await saveLeadAiDraft(leadId, draft.content);
+
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "FOLLOW_UP_DRAFT_GENERATED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { model: draft.model },
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function createGmailFollowUpDraftAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const templateId = String(formData.get("templateId") ?? "").trim() || undefined;
+  const showingTimes = parseStringList(formData.get("showingTimes")).join(", ");
+  const applicationLink = String(formData.get("applicationLink") ?? "").trim() || undefined;
+
+  await createGmailDraftFromLead({
+    leadId,
+    userId: user.id,
+    actorId: user.id,
+    templateId,
+    showingTimes: showingTimes || undefined,
+    applicationLink,
+    agentName: user.name ?? "Sovereign Realty NYC Leasing Team",
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "GMAIL_FOLLOW_UP_DRAFT_CREATED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { templateId },
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+  redirect(`/leads/${leadId}?draft_created=1`);
+}
+
+export async function markFollowUpCompletedAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+
+  const followUpAttemptCount = (lead.followUpAttemptCount ?? 0) + 1;
+  const nowIso = new Date().toISOString();
+  const followUpStage = determineFollowUpStage(followUpAttemptCount);
+  const nextFollowUpAt = calculateNextFollowUpAt({
+    lastContactedAt: nowIso,
+    lastClientReplyAt: lead.lastClientReplyAt,
+    followUpAttemptCount,
+  });
+
+  await updateLeadWorkflowState(leadId, {
+    lastContactedAt: nowIso,
+    followUpAttemptCount,
+    followUpStage,
+    nextFollowUpAt,
+    followUpPaused: false,
+    followUpPauseReason: null,
+    status: followUpStage === "STALE_RECOMMENDED" ? "FOLLOW_UP_NEEDED" : "FOLLOW_UP",
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "FOLLOW_UP_MARKED_COMPLETED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { followUpAttemptCount, followUpStage, nextFollowUpAt },
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function pauseFollowUpsAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const pauseReason = String(formData.get("pauseReason") ?? "").trim() || "MANUAL_PAUSE";
+  await updateLeadWorkflowState(leadId, {
+    followUpPaused: true,
+    followUpPauseReason: pauseReason,
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "FOLLOW_UP_PAUSED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { pauseReason },
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function resumeFollowUpsAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+
+  await updateLeadWorkflowState(leadId, {
+    followUpPaused: false,
+    followUpPauseReason: null,
+    nextFollowUpAt:
+      lead.nextFollowUpAt ??
+      calculateNextFollowUpAt({
+        lastContactedAt: lead.lastContactedAt,
+        lastClientReplyAt: lead.lastClientReplyAt,
+        followUpAttemptCount: lead.followUpAttemptCount,
+      }),
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "FOLLOW_UP_RESUMED",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function markLeadStaleAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+
+  await updateLeadWorkflowState(leadId, {
+    followUpStage: "STALE_RECOMMENDED",
+    status: "FOLLOW_UP_NEEDED",
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "LEAD_MARKED_STALE",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function archiveLeadFromPipelineAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+
+  await updateLeadWorkflowState(leadId, {
+    status: "ARCHIVED",
+    followUpStage: "ARCHIVED",
+    followUpPaused: true,
+    followUpPauseReason: "LEAD_ARCHIVED",
+    showingStatus: "ARCHIVED",
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "LEAD_ARCHIVED",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function upsertFollowUpSequenceAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertAdmin(user.role);
+
+  const sequenceId = String(formData.get("sequenceId") ?? "").trim() || undefined;
+  const templateIds = [
+    String(formData.get("templateIdStep1") ?? "").trim() || null,
+    String(formData.get("templateIdStep2") ?? "").trim() || null,
+    String(formData.get("templateIdStep3") ?? "").trim() || null,
+  ];
+  const delays = [
+    Number(String(formData.get("delayStep1") ?? "24")),
+    Number(String(formData.get("delayStep2") ?? "48")),
+    Number(String(formData.get("delayStep3") ?? "144")),
+  ];
+
+  await upsertFollowUpSequence({
+    id: sequenceId,
+    name: requiredString(formData.get("name"), "Name"),
+    listingId: String(formData.get("listingId") ?? "").trim() || null,
+    source: (String(formData.get("source") ?? "").trim() || null) as never,
+    leadStatus: (String(formData.get("leadStatus") ?? "").trim() || null) as never,
+    state: requiredString(formData.get("state"), "State") as "ACTIVE" | "PAUSED" | "COMPLETED",
+    steps: delays.map((delay, index) => ({
+      stepOrder: index + 1,
+      delayHours: Number.isFinite(delay) && delay > 0 ? delay : index === 0 ? 24 : index === 1 ? 48 : 144,
+      templateId: templateIds[index],
+    })),
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: "FOLLOW_UP_SEQUENCE_UPDATED",
+    entityType: "FOLLOW_UP_SEQUENCE",
+    entityId: sequenceId ?? "new",
+  });
+
+  revalidatePath("/pipeline");
+}
+
+export async function markShowingRequestedAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "SHOWING_REQUESTED");
+  const requestedTimes = parseStringList(formData.get("requestedShowingTimes"));
+
+  await updateLeadWorkflowState(leadId, {
+    status: "SHOWING_REQUESTED",
+    showingStatus: "SHOWING_REQUESTED",
+    requestedShowingTimes: requestedTimes,
+    followUpPaused: true,
+    followUpPauseReason: "SHOWING_SCHEDULED",
+  });
+
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "SHOWING_REQUESTED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { requestedTimes },
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function offerShowingTimesAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "TIMES_OFFERED");
+  const offeredTimes = parseStringList(formData.get("offeredShowingTimes"));
+
+  await updateLeadWorkflowState(leadId, {
+    showingStatus: "TIMES_OFFERED",
+    offeredShowingTimes: offeredTimes,
+    followUpPaused: true,
+    followUpPauseReason: "SHOWING_SCHEDULED",
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "SHOWING_TIMES_OFFERED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { offeredTimes },
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function confirmShowingAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "SHOWING_CONFIRMED");
+  const confirmedAt = String(formData.get("confirmedShowingAt") ?? "").trim();
+
+  await updateLeadWorkflowState(leadId, {
+    showingStatus: "SHOWING_CONFIRMED",
+    confirmedShowingAt: confirmedAt ? new Date(confirmedAt).toISOString() : null,
+    showingAgentId: String(formData.get("showingAgentId") ?? "").trim() || null,
+    showingLocation: String(formData.get("showingLocation") ?? "").trim() || null,
+    accessInstructions: String(formData.get("accessInstructions") ?? "").trim() || null,
+    followUpPaused: true,
+    followUpPauseReason: "SHOWING_SCHEDULED",
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "SHOWING_CONFIRMED",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function markShowingCompletedAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "SHOWING_COMPLETED");
+
+  await updateLeadWorkflowState(leadId, {
+    showingStatus: "SHOWING_COMPLETED",
+    showedAt: new Date().toISOString(),
+    postShowingNotes: String(formData.get("postShowingNotes") ?? "").trim() || null,
+    followUpPaused: false,
+    followUpPauseReason: null,
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "SHOWING_COMPLETED",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function markNoShowAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "NO_SHOW");
+  const noShowReason = String(formData.get("noShowReason") ?? "").trim() || "No-show";
+
+  await updateLeadWorkflowState(leadId, {
+    showingStatus: "NO_SHOW",
+    noShowReason,
+    followUpPaused: false,
+    followUpPauseReason: null,
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "SHOWING_NO_SHOW_MARKED",
+    entityType: "LEAD",
+    entityId: leadId,
+    metadata: { noShowReason },
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function requestRescheduleAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "RESCHEDULE_NEEDED");
+  await updateLeadWorkflowState(leadId, {
+    showingStatus: "RESCHEDULE_NEEDED",
+    followUpPaused: false,
+    followUpPauseReason: null,
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "SHOWING_RESCHEDULE_REQUESTED",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+}
+
+export async function draftApplicationInstructionsAction(formData: FormData) {
+  const session = await getAppSession();
+  const user = requireSessionUser(session);
+  assertEditor(user.role);
+  const leadId = requiredString(formData.get("leadId"), "Lead");
+  const lead = await getLeadById(leadId);
+  if (!lead) throw new Error("Lead not found");
+  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "APPLICATION_REQUESTED");
+  await updateLeadWorkflowState(leadId, {
+    status: "APPLICATION_REQUESTED",
+    showingStatus: "APPLICATION_REQUESTED",
+    applicationInstructionsDraftedAt: new Date().toISOString(),
+    followUpPaused: true,
+    followUpPauseReason: "APPLICATION_INSTRUCTIONS_SENT",
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    leadId,
+    action: "APPLICATION_INSTRUCTIONS_DRAFTED",
+    entityType: "LEAD",
+    entityId: leadId,
+  });
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
 }
 
 export async function disconnectGmailAction() {

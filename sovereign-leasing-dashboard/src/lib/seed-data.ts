@@ -1,5 +1,6 @@
 import type {
   EmailTemplateRecord,
+  FollowUpSequenceRecord,
   GmailInquiryMessage,
   LeadRecord,
   LeadQualificationRecord,
@@ -24,7 +25,7 @@ export const seedUsers: TeamUser[] = [
   {
     id: "user_agent_1",
     name: "Marcus Bell",
-    email: "mbell@sovereignnyc.com",
+    email: "mbell@srealty.nyc",
     phone: "212-555-2200",
     role: "AGENT",
     passwordHash: pwHash,
@@ -33,7 +34,7 @@ export const seedUsers: TeamUser[] = [
   {
     id: "user_assistant_1",
     name: "Sofia Ruiz",
-    email: "ops@sovereignnyc.com",
+    email: "ops@srealty.nyc",
     phone: "212-555-3300",
     role: "ASSISTANT",
     passwordHash: pwHash,
@@ -42,7 +43,7 @@ export const seedUsers: TeamUser[] = [
   {
     id: "user_viewer_1",
     name: "Reporting Viewer",
-    email: "viewer@sovereignnyc.com",
+    email: "viewer@srealty.nyc",
     role: "READ_ONLY",
     passwordHash: pwHash,
     isActive: true,
@@ -130,6 +131,13 @@ export const seedLeads: LeadRecord[] = [
     recommendedNextAction: "Offer showing slots for this week.",
     assignedAgentId: "user_agent_1",
     followUpDate: "2026-06-04T15:00:00.000Z",
+    lastContactedAt: "2026-06-04T15:00:00.000Z",
+    nextFollowUpAt: "2026-06-05T15:00:00.000Z",
+    followUpStage: "FOLLOW_UP_1",
+    followUpPaused: false,
+    followUpSequenceId: "sequence_default",
+    followUpAttemptCount: 1,
+    showingStatus: "NOT_REQUESTED",
     receivedAt: "2026-06-03T14:10:00.000Z",
     parsedFields: {
       listingAddress: "101 Warren St",
@@ -169,6 +177,14 @@ export const seedLeads: LeadRecord[] = [
     responsivenessScore: 70,
     completenessScore: 75,
     recommendedNextAction: "Request guarantor documents and preferred showing windows.",
+    lastContactedAt: "2026-06-04T18:00:00.000Z",
+    nextFollowUpAt: "2026-06-06T18:00:00.000Z",
+    followUpStage: "FOLLOW_UP_1",
+    followUpPaused: false,
+    followUpSequenceId: "sequence_default",
+    followUpAttemptCount: 1,
+    showingStatus: "SHOWING_REQUESTED",
+    requestedShowingTimes: ["Tue 6:00 PM", "Thu 5:30 PM"],
     receivedAt: "2026-06-03T16:40:00.000Z",
     parsedFields: {
       listingAddress: "245 E 87th St",
@@ -199,6 +215,14 @@ export const seedLeads: LeadRecord[] = [
     responsivenessScore: 60,
     completenessScore: 40,
     recommendedNextAction: "Send qualification questionnaire and clarify pet policy.",
+    lastContactedAt: "2026-06-04T11:00:00.000Z",
+    nextFollowUpAt: "2026-06-05T11:00:00.000Z",
+    followUpStage: "FINAL_FOLLOW_UP",
+    followUpPaused: true,
+    followUpPauseReason: "MANUAL_PAUSE",
+    followUpSequenceId: "sequence_default",
+    followUpAttemptCount: 3,
+    showingStatus: "RESCHEDULE_NEEDED",
     receivedAt: "2026-06-03T17:20:00.000Z",
     parsedFields: {
       listingAddress: "101 Warren St",
@@ -273,6 +297,77 @@ export const seedTemplates: EmailTemplateRecord[] = [
       "Hi {{client_name}},\n\nGreat news — based on your profile, you can begin the application process. Please submit: photo ID, proof of income, bank statements, and guarantor documents if needed. Application link: {{application_link}}\n\nThanks,\n{{agent_name}}",
     isActive: true,
   },
+  {
+    id: "template_followup_48h",
+    name: "Follow-Up 48h",
+    category: "FOLLOW_UP",
+    mode: "DRAFT_REVIEW",
+    subject: "Second follow-up for {{listing_address}}",
+    body:
+      "Hi {{client_name}},\n\nChecking in one more time on {{listing_address}} {{apartment_number}}. We can hold review once we receive: {{missing_fields}}.\n\nSuggested showing options: {{showing_times}}\n\nBest,\n{{agent_name}}",
+    isActive: true,
+  },
+  {
+    id: "template_followup_final",
+    name: "Final Follow-Up",
+    category: "FOLLOW_UP",
+    mode: "DRAFT_REVIEW",
+    subject: "Final check-in on {{listing_address}}",
+    body:
+      "Hi {{client_name}},\n\nFinal touchpoint in case you still want to move forward on {{listing_address}} {{apartment_number}}. If we do not hear back, we will archive this lead for now.\n\nBest,\n{{agent_name}}",
+    isActive: true,
+  },
+  {
+    id: "template_showing_times_offered",
+    name: "Showing Times Offered",
+    category: "SHOWING",
+    mode: "DRAFT_REVIEW",
+    subject: "Showing options for {{listing_address}} {{apartment_number}}",
+    body:
+      "Hi {{client_name}},\n\nWe can offer the following showing windows: {{showing_times}}.\n\nAgent: {{agent_name}} ({{agent_phone}})\nAccess: {{access_instructions}}\n\nBest,\nSovereign Realty NYC",
+    isActive: true,
+  },
+  {
+    id: "template_showing_confirmation",
+    name: "Showing Confirmation",
+    category: "SHOWING",
+    mode: "DRAFT_REVIEW",
+    subject: "Showing confirmed for {{listing_address}} on {{showing_date}}",
+    body:
+      "Hi {{client_name}},\n\nYour showing for {{listing_address}} {{apartment_number}} is confirmed on {{showing_date}} at {{showing_time}}.\n\nAgent: {{agent_name}} ({{agent_phone}})\nAccess instructions: {{access_instructions}}\n\nBest,\nSovereign Realty NYC",
+    isActive: true,
+  },
+];
+
+export const seedFollowUpSequences: FollowUpSequenceRecord[] = [
+  {
+    id: "sequence_default",
+    name: "Default Sovereign Follow-Up",
+    listingId: null,
+    source: null,
+    leadStatus: null,
+    state: "ACTIVE",
+    steps: [
+      {
+        id: "sequence_default_step_1",
+        stepOrder: 1,
+        delayHours: 24,
+        templateId: "template_followup_24h",
+      },
+      {
+        id: "sequence_default_step_2",
+        stepOrder: 2,
+        delayHours: 48,
+        templateId: "template_followup_48h",
+      },
+      {
+        id: "sequence_default_step_3",
+        stepOrder: 3,
+        delayHours: 144,
+        templateId: "template_followup_final",
+      },
+    ],
+  },
 ];
 
 export const seedQualifications: LeadQualificationRecord[] = [
@@ -307,7 +402,7 @@ export const seedEmailMessages = [
     bodyText:
       "Hi, I am interested in 101 Warren St 2A. Looking to move by July 1st. We are 2 working professionals with one cat.",
     senderEmail: "jordan.smith@email.com",
-    recipientEmail: "leasing@sovereignnyc.com",
+    recipientEmail: "leasing@srealty.nyc",
     gmailMessageId: "gmail_seed_msg_001",
     gmailThreadId: "gmail_seed_thread_001",
     sentAt: "2026-06-03T14:10:00.000Z",
@@ -320,7 +415,7 @@ export const seedEmailMessages = [
     subject: "Re: Inquiry for 101 Warren St 2A",
     bodyText:
       "Thanks Jordan. Can you share household annual income and preferred showing windows this week?",
-    senderEmail: "mbell@sovereignnyc.com",
+    senderEmail: "mbell@srealty.nyc",
     recipientEmail: "jordan.smith@email.com",
     gmailMessageId: "gmail_seed_msg_003",
     gmailThreadId: "gmail_seed_thread_001",
@@ -335,7 +430,7 @@ export const seedEmailMessages = [
     bodyText:
       "Interested in 245 E 87th St apt 11F. I am a student with guarantor support and flexible move-in date.",
     senderEmail: "priya@email.com",
-    recipientEmail: "leasing@sovereignnyc.com",
+    recipientEmail: "leasing@srealty.nyc",
     gmailMessageId: "gmail_seed_msg_002",
     gmailThreadId: "gmail_seed_thread_002",
     sentAt: "2026-06-03T16:40:00.000Z",

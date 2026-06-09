@@ -15,9 +15,90 @@ Phase 2 focuses on safe, testable Gmail workflows:
 - Run full mock mode without Google setup
 - Use admin debug tools at `/admin/gmail-debug`
 
+## Phase 3 (follow-up + showing workflow)
+
+Phase 3 adds post-reply execution workflows for Sovereign Realty NYC:
+
+- Dedicated pipeline board at `/pipeline` with grouped queues:
+  - Due Today
+  - Overdue
+  - Waiting on Client
+  - Waiting on Agent
+  - Qualified, No Showing Scheduled
+  - Draft Created, Not Sent
+  - Stale Leads Recommended for Archive
+- Pipeline filters for agent, listing, source, qualification status, follow-up stage, due date, and showing status.
+- Follow-up tracking fields on each lead:
+  - `lastContactedAt`
+  - `lastClientReplyAt`
+  - `nextFollowUpAt`
+  - `followUpStage`
+  - `followUpPaused`
+  - `followUpPauseReason`
+  - `followUpSequenceId`
+  - `followUpAttemptCount`
+- Admin-editable follow-up sequences with timing, template mapping, active/paused/completed state, listing targeting, and source targeting.
+- Draft-only follow-up actions:
+  - Generate Follow-Up Draft
+  - Create Gmail Draft Follow-Up
+  - Copy Follow-Up Text
+  - Mark Follow-Up Completed
+  - Pause / Resume Follow-Ups
+  - Mark Lead Stale
+  - Archive Lead
+- Showing workflow statuses:
+  - `NOT_REQUESTED`
+  - `SHOWING_REQUESTED`
+  - `TIMES_OFFERED`
+  - `SHOWING_CONFIRMED`
+  - `SHOWING_COMPLETED`
+  - `NO_SHOW`
+  - `RESCHEDULE_NEEDED`
+  - `APPLICATION_REQUESTED`
+  - `ARCHIVED`
+- Showing actions from lead detail:
+  - Mark Showing Requested
+  - Offer Showing Times
+  - Confirm Showing
+  - Mark Showing Completed
+  - Mark No-Show
+  - Request Reschedule
+  - Draft Application Instructions
+  - Archive Lead
+- Calendar integration placeholder only (`calendarProvider`, `mockCalendarProvider`, `createShowingEventPlaceholder`).
+- AI advisory upgrades:
+  - AI Recommendation
+  - Human Review Required
+  - Suggested Next Action
+  - Showing confirmation draft language
+  - Missing-info prompts
+
+## Follow-up sequence defaults
+
+Default sequence is:
+
+1. Follow-up 1 after 24 hours
+2. Follow-up 2 after 48 hours
+3. Final follow-up after 5-7 days
+4. Stale/archive recommendation after final touch if no reply
+
+## Pause conditions
+
+Follow-ups are paused when:
+
+- Client replies
+- Lead is archived
+- Lead is marked not interested
+- Showing is scheduled/confirmed
+- Application instructions are drafted
+- Listing is inactive/rented
+- Agent manually pauses
+- Gmail thread shows newer inbound client response
+
 ## Safety guardrails
 
 - No automatic sends in Phase 2.
+- No automatic sends in Phase 3.
 - AI output is advisory only and requires human review.
 - OAuth tokens are encrypted at rest and never shown in UI.
 
@@ -122,3 +203,30 @@ Use `/admin/gmail-debug` for diagnostics and recent error context.
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
+
+## Phase 3 testing focus
+
+Run targeted checks for:
+
+- Follow-up due-date calculation and stage progression
+- Pause condition logic
+- Template variable replacement for follow-up/showing drafts
+- Showing status transition validation
+- Activity-log emitting actions
+- Mock Gmail follow-up draft behavior
+- AI next-action advisory output format
+
+## Current limitations
+
+- No automatic email sending (draft-only by design)
+- No final applicant approval/rejection automation
+- Calendar integration is placeholder only (mock provider)
+- No full application packet orchestration yet
+
+## Recommended Phase 4 roadmap
+
+- Real calendar provider integration (Google/Microsoft)
+- Reminder and SLA notifications for overdue leads
+- Inbox-to-pipeline sync enhancements across all thread updates
+- Agent workload balancing and smart assignment
+- Expanded reporting for follow-up and showing conversion funnels

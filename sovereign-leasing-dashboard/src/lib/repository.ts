@@ -5,12 +5,16 @@ import type {
   AuditLogRecord,
   DashboardMetrics,
   EmailTemplateRecord,
+  FollowUpSequenceRecord,
+  FollowUpStage,
   LeadNoteRecord,
   LeadQualificationRecord,
   LeadRecord,
   LeadStatus,
   ListingRecord,
+  PipelineFilters,
   QualificationRuleRecord,
+  ShowingWorkflowStatus,
   TeamUser,
 } from "@/lib/types";
 
@@ -106,7 +110,27 @@ function mapLead(lead: {
   completenessScore: number;
   recommendedNextAction?: string | null;
   assignedAgentId?: string | null;
+  showingAgentId?: string | null;
   followUpDate?: Date | string | null;
+  lastContactedAt?: Date | string | null;
+  lastClientReplyAt?: Date | string | null;
+  nextFollowUpAt?: Date | string | null;
+  followUpStage?: FollowUpStage | null;
+  followUpPaused?: boolean | null;
+  followUpPauseReason?: string | null;
+  followUpSequenceId?: string | null;
+  followUpAttemptCount?: number | null;
+  showingStatus?: ShowingWorkflowStatus | null;
+  requestedShowingTimes?: unknown;
+  offeredShowingTimes?: unknown;
+  confirmedShowingAt?: Date | string | null;
+  showingLocation?: string | null;
+  accessInstructions?: string | null;
+  showingNotes?: string | null;
+  showedAt?: Date | string | null;
+  noShowReason?: string | null;
+  postShowingNotes?: string | null;
+  applicationInstructionsDraftedAt?: Date | string | null;
   receivedAt: Date | string;
   parsedFields?: unknown;
 }): LeadRecord {
@@ -147,9 +171,66 @@ function mapLead(lead: {
     completenessScore: lead.completenessScore,
     recommendedNextAction: lead.recommendedNextAction,
     assignedAgentId: lead.assignedAgentId,
+    showingAgentId: lead.showingAgentId,
     followUpDate: toIso(lead.followUpDate),
+    lastContactedAt: toIso(lead.lastContactedAt),
+    lastClientReplyAt: toIso(lead.lastClientReplyAt),
+    nextFollowUpAt: toIso(lead.nextFollowUpAt),
+    followUpStage: lead.followUpStage ?? "INITIAL_REPLY",
+    followUpPaused: lead.followUpPaused ?? false,
+    followUpPauseReason: lead.followUpPauseReason,
+    followUpSequenceId: lead.followUpSequenceId,
+    followUpAttemptCount: lead.followUpAttemptCount ?? 0,
+    showingStatus: lead.showingStatus ?? "NOT_REQUESTED",
+    requestedShowingTimes: (lead.requestedShowingTimes as string[] | undefined) ?? [],
+    offeredShowingTimes: (lead.offeredShowingTimes as string[] | undefined) ?? [],
+    confirmedShowingAt: toIso(lead.confirmedShowingAt),
+    showingLocation: lead.showingLocation,
+    accessInstructions: lead.accessInstructions,
+    showingNotes: lead.showingNotes,
+    showedAt: toIso(lead.showedAt),
+    noShowReason: lead.noShowReason,
+    postShowingNotes: lead.postShowingNotes,
+    applicationInstructionsDraftedAt: toIso(lead.applicationInstructionsDraftedAt),
     receivedAt: toIso(lead.receivedAt) ?? new Date().toISOString(),
     parsedFields: (lead.parsedFields as Record<string, unknown> | undefined) ?? undefined,
+  };
+}
+
+function mapFollowUpSequence(sequence: {
+  id: string;
+  name: string;
+  listingId?: string | null;
+  source?: LeadRecord["source"] | null;
+  leadStatus?: LeadStatus | null;
+  state: "ACTIVE" | "PAUSED" | "COMPLETED";
+  steps: Array<{
+    id: string;
+    stepOrder: number;
+    delayHours: number;
+    templateId?: string | null;
+    fallbackSubject?: string | null;
+    fallbackBody?: string | null;
+  }>;
+}): FollowUpSequenceRecord {
+  return {
+    id: sequence.id,
+    name: sequence.name,
+    listingId: sequence.listingId,
+    source: sequence.source ?? null,
+    leadStatus: sequence.leadStatus,
+    state: sequence.state,
+    steps: sequence.steps
+      .slice()
+      .sort((a, b) => a.stepOrder - b.stepOrder)
+      .map((step) => ({
+        id: step.id,
+        stepOrder: step.stepOrder,
+        delayHours: step.delayHours,
+        templateId: step.templateId,
+        fallbackSubject: step.fallbackSubject,
+        fallbackBody: step.fallbackBody,
+      })),
   };
 }
 
@@ -206,6 +287,9 @@ export async function listLeads(filters?: {
   status?: LeadStatus;
   source?: string;
   listingId?: string;
+  assignedAgentId?: string;
+  followUpStage?: FollowUpStage;
+  showingStatus?: ShowingWorkflowStatus;
 }): Promise<LeadRecord[]> {
   return runWithFallback(
     async () => {
@@ -214,6 +298,9 @@ export async function listLeads(filters?: {
           status: filters?.status,
           source: filters?.source as never,
           listingId: filters?.listingId,
+          assignedAgentId: filters?.assignedAgentId,
+          followUpStage: filters?.followUpStage as never,
+          showingStatus: filters?.showingStatus as never,
         },
         orderBy: { receivedAt: "desc" },
       });
@@ -224,7 +311,10 @@ export async function listLeads(filters?: {
       return store.leads
         .filter((lead) => (filters?.status ? lead.status === filters.status : true))
         .filter((lead) => (filters?.source ? lead.source === filters.source : true))
-        .filter((lead) => (filters?.listingId ? lead.listingId === filters.listingId : true));
+        .filter((lead) => (filters?.listingId ? lead.listingId === filters.listingId : true))
+        .filter((lead) => (filters?.assignedAgentId ? lead.assignedAgentId === filters.assignedAgentId : true))
+        .filter((lead) => (filters?.followUpStage ? lead.followUpStage === filters.followUpStage : true))
+        .filter((lead) => (filters?.showingStatus ? lead.showingStatus === filters.showingStatus : true));
     },
   );
 }
@@ -454,6 +544,26 @@ export async function createLead(input: {
   missingFields?: string[];
   parsedFields?: Record<string, unknown>;
   status?: LeadStatus;
+  followUpStage?: FollowUpStage;
+  followUpPaused?: boolean;
+  followUpPauseReason?: string | null;
+  followUpSequenceId?: string | null;
+  followUpAttemptCount?: number;
+  showingStatus?: ShowingWorkflowStatus;
+  lastContactedAt?: string | null;
+  lastClientReplyAt?: string | null;
+  nextFollowUpAt?: string | null;
+  requestedShowingTimes?: string[];
+  offeredShowingTimes?: string[];
+  confirmedShowingAt?: string | null;
+  showingAgentId?: string | null;
+  showingLocation?: string | null;
+  accessInstructions?: string | null;
+  showingNotes?: string | null;
+  showedAt?: string | null;
+  noShowReason?: string | null;
+  postShowingNotes?: string | null;
+  applicationInstructionsDraftedAt?: string | null;
 }) {
   const status = input.status ?? "NEW";
   return runWithFallback(
@@ -489,6 +599,26 @@ export async function createLead(input: {
           responsivenessScore: 0,
           completenessScore: 0,
           parsedFields: input.parsedFields as never,
+          followUpStage: input.followUpStage ?? "INITIAL_REPLY",
+          followUpPaused: input.followUpPaused ?? false,
+          followUpPauseReason: input.followUpPauseReason,
+          followUpSequenceId: input.followUpSequenceId,
+          followUpAttemptCount: input.followUpAttemptCount ?? 0,
+          showingStatus: input.showingStatus ?? "NOT_REQUESTED",
+          lastContactedAt: toDate(input.lastContactedAt),
+          lastClientReplyAt: toDate(input.lastClientReplyAt),
+          nextFollowUpAt: toDate(input.nextFollowUpAt),
+          requestedShowingTimes: input.requestedShowingTimes,
+          offeredShowingTimes: input.offeredShowingTimes,
+          confirmedShowingAt: toDate(input.confirmedShowingAt),
+          showingAgentId: input.showingAgentId,
+          showingLocation: input.showingLocation,
+          accessInstructions: input.accessInstructions,
+          showingNotes: input.showingNotes,
+          showedAt: toDate(input.showedAt),
+          noShowReason: input.noShowReason,
+          postShowingNotes: input.postShowingNotes,
+          applicationInstructionsDraftedAt: toDate(input.applicationInstructionsDraftedAt),
         },
       });
       return mapLead(row);
@@ -525,6 +655,26 @@ export async function createLead(input: {
         status,
         responsivenessScore: 0,
         completenessScore: 0,
+        followUpStage: input.followUpStage ?? "INITIAL_REPLY",
+        followUpPaused: input.followUpPaused ?? false,
+        followUpPauseReason: input.followUpPauseReason,
+        followUpSequenceId: input.followUpSequenceId,
+        followUpAttemptCount: input.followUpAttemptCount ?? 0,
+        showingStatus: input.showingStatus ?? "NOT_REQUESTED",
+        lastContactedAt: input.lastContactedAt,
+        lastClientReplyAt: input.lastClientReplyAt,
+        nextFollowUpAt: input.nextFollowUpAt,
+        requestedShowingTimes: input.requestedShowingTimes ?? [],
+        offeredShowingTimes: input.offeredShowingTimes ?? [],
+        confirmedShowingAt: input.confirmedShowingAt,
+        showingAgentId: input.showingAgentId,
+        showingLocation: input.showingLocation,
+        accessInstructions: input.accessInstructions,
+        showingNotes: input.showingNotes,
+        showedAt: input.showedAt,
+        noShowReason: input.noShowReason,
+        postShowingNotes: input.postShowingNotes,
+        applicationInstructionsDraftedAt: input.applicationInstructionsDraftedAt,
         receivedAt: new Date().toISOString(),
         parsedFields: input.parsedFields,
       };
@@ -799,6 +949,253 @@ export async function assignLead(leadId: string, assignedAgentId: string | null)
   );
 }
 
+export async function updateLeadWorkflowState(
+  leadId: string,
+  updates: Partial<
+    Pick<
+      LeadRecord,
+      | "status"
+      | "lastContactedAt"
+      | "lastClientReplyAt"
+      | "nextFollowUpAt"
+      | "followUpStage"
+      | "followUpPaused"
+      | "followUpPauseReason"
+      | "followUpSequenceId"
+      | "followUpAttemptCount"
+      | "showingStatus"
+      | "requestedShowingTimes"
+      | "offeredShowingTimes"
+      | "confirmedShowingAt"
+      | "showingAgentId"
+      | "showingLocation"
+      | "accessInstructions"
+      | "showingNotes"
+      | "showedAt"
+      | "noShowReason"
+      | "postShowingNotes"
+      | "applicationInstructionsDraftedAt"
+      | "recommendedNextAction"
+    >
+  >,
+) {
+  return runWithFallback(
+    async () => {
+      const row = await prisma.lead.update({
+        where: { id: leadId },
+        data: {
+          status: updates.status as never,
+          lastContactedAt: toDate(updates.lastContactedAt),
+          lastClientReplyAt: toDate(updates.lastClientReplyAt),
+          nextFollowUpAt: toDate(updates.nextFollowUpAt),
+          followUpStage: updates.followUpStage as never,
+          followUpPaused: updates.followUpPaused,
+          followUpPauseReason: updates.followUpPauseReason,
+          followUpSequenceId: updates.followUpSequenceId,
+          followUpAttemptCount: updates.followUpAttemptCount,
+          showingStatus: updates.showingStatus as never,
+          requestedShowingTimes: updates.requestedShowingTimes as never,
+          offeredShowingTimes: updates.offeredShowingTimes as never,
+          confirmedShowingAt: toDate(updates.confirmedShowingAt),
+          showingAgentId: updates.showingAgentId,
+          showingLocation: updates.showingLocation,
+          accessInstructions: updates.accessInstructions,
+          showingNotes: updates.showingNotes,
+          showedAt: toDate(updates.showedAt),
+          noShowReason: updates.noShowReason,
+          postShowingNotes: updates.postShowingNotes,
+          applicationInstructionsDraftedAt: toDate(updates.applicationInstructionsDraftedAt),
+          recommendedNextAction: updates.recommendedNextAction,
+        },
+      });
+      return mapLead(row);
+    },
+    () => {
+      const store = getFallbackStore();
+      const lead = store.leads.find((item) => item.id === leadId);
+      if (!lead) return null;
+      Object.assign(lead, updates);
+      return lead;
+    },
+  );
+}
+
+export async function listFollowUpSequences(): Promise<FollowUpSequenceRecord[]> {
+  return runWithFallback(
+    async () => {
+      const rows = await prisma.followUpSequence.findMany({
+        include: { steps: true },
+        orderBy: { updatedAt: "desc" },
+      });
+      return rows.map((row) =>
+        mapFollowUpSequence({
+          id: row.id,
+          name: row.name,
+          listingId: row.listingId,
+          source: row.source,
+          leadStatus: row.leadStatus,
+          state: row.state,
+          steps: row.steps.map((step) => ({
+            id: step.id,
+            stepOrder: step.stepOrder,
+            delayHours: step.delayHours,
+            templateId: step.templateId,
+            fallbackSubject: step.fallbackSubject,
+            fallbackBody: step.fallbackBody,
+          })),
+        }),
+      );
+    },
+    () => getFallbackStore().followUpSequences,
+  );
+}
+
+export async function upsertFollowUpSequence(input: {
+  id?: string;
+  name: string;
+  listingId?: string | null;
+  source?: LeadRecord["source"] | null;
+  leadStatus?: LeadStatus | null;
+  state: "ACTIVE" | "PAUSED" | "COMPLETED";
+  steps: Array<{
+    stepOrder: number;
+    delayHours: number;
+    templateId?: string | null;
+    fallbackSubject?: string | null;
+    fallbackBody?: string | null;
+  }>;
+}): Promise<FollowUpSequenceRecord> {
+  return runWithFallback(
+    async () => {
+      if (input.id) {
+        const updated = await prisma.followUpSequence.update({
+          where: { id: input.id },
+          data: {
+            name: input.name,
+            listingId: input.listingId ?? null,
+            source: (input.source ?? null) as never,
+            leadStatus: (input.leadStatus ?? null) as never,
+            state: input.state as never,
+            steps: {
+              deleteMany: {},
+              create: input.steps.map((step) => ({
+                stepOrder: step.stepOrder,
+                delayHours: step.delayHours,
+                templateId: step.templateId ?? null,
+                fallbackSubject: step.fallbackSubject ?? null,
+                fallbackBody: step.fallbackBody ?? null,
+              })),
+            },
+          },
+          include: { steps: true },
+        });
+        return mapFollowUpSequence({
+          id: updated.id,
+          name: updated.name,
+          listingId: updated.listingId,
+          source: updated.source,
+          leadStatus: updated.leadStatus,
+          state: updated.state,
+          steps: updated.steps,
+        });
+      }
+
+      const created = await prisma.followUpSequence.create({
+        data: {
+          name: input.name,
+          listingId: input.listingId ?? null,
+          source: (input.source ?? null) as never,
+          leadStatus: (input.leadStatus ?? null) as never,
+          state: input.state as never,
+          steps: {
+            create: input.steps.map((step) => ({
+              stepOrder: step.stepOrder,
+              delayHours: step.delayHours,
+              templateId: step.templateId ?? null,
+              fallbackSubject: step.fallbackSubject ?? null,
+              fallbackBody: step.fallbackBody ?? null,
+            })),
+          },
+        },
+        include: { steps: true },
+      });
+      return mapFollowUpSequence({
+        id: created.id,
+        name: created.name,
+        listingId: created.listingId,
+        source: created.source,
+        leadStatus: created.leadStatus,
+        state: created.state,
+        steps: created.steps,
+      });
+    },
+    () => {
+      const store = getFallbackStore();
+      const mapped: FollowUpSequenceRecord = {
+        id: input.id ?? makeId("sequence"),
+        name: input.name,
+        listingId: input.listingId ?? null,
+        source: input.source ?? null,
+        leadStatus: input.leadStatus ?? null,
+        state: input.state,
+        steps: input.steps.map((step) => ({
+          id: makeId("step"),
+          stepOrder: step.stepOrder,
+          delayHours: step.delayHours,
+          templateId: step.templateId ?? null,
+          fallbackSubject: step.fallbackSubject ?? null,
+          fallbackBody: step.fallbackBody ?? null,
+        })),
+      };
+      const idx = store.followUpSequences.findIndex((item) => item.id === mapped.id);
+      if (idx >= 0) {
+        store.followUpSequences[idx] = mapped;
+      } else {
+        store.followUpSequences.unshift(mapped);
+      }
+      return mapped;
+    },
+  );
+}
+
+export async function listPipelineLeads(filters?: PipelineFilters): Promise<LeadRecord[]> {
+  let leads = await listLeads({
+    source: filters?.source && filters.source !== "ALL" ? filters.source : undefined,
+    listingId: filters?.listingId || undefined,
+    assignedAgentId: filters?.agentId || undefined,
+    status:
+      filters?.qualificationStatus && filters.qualificationStatus !== "ALL"
+        ? (filters.qualificationStatus as LeadStatus)
+        : undefined,
+    followUpStage:
+      filters?.followUpStage && filters.followUpStage !== "ALL"
+        ? (filters.followUpStage as FollowUpStage)
+        : undefined,
+    showingStatus:
+      filters?.showingStatus && filters.showingStatus !== "ALL"
+        ? (filters.showingStatus as ShowingWorkflowStatus)
+        : undefined,
+  });
+  if (filters?.due === "DUE_TODAY") {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    leads = leads.filter((lead) => {
+      const due = toDate(lead.nextFollowUpAt);
+      return due ? due >= start && due < end : false;
+    });
+  }
+  if (filters?.due === "OVERDUE") {
+    const now = new Date();
+    leads = leads.filter((lead) => {
+      const due = toDate(lead.nextFollowUpAt);
+      return due ? due < now : false;
+    });
+  }
+  return leads;
+}
+
 export async function addLeadNote(input: { leadId: string; authorId?: string | null; content: string }) {
   return runWithFallback(
     async () => {
@@ -867,6 +1264,14 @@ export async function addOutboundMessage(input: {
           gmailMessageId: input.gmailMessageId,
           gmailThreadId: input.gmailThreadId,
           status: input.status ?? "SENT",
+        },
+      });
+      await prisma.lead.update({
+        where: { id: input.leadId },
+        data: {
+          lastClientReplyAt: new Date(),
+          followUpPaused: true,
+          followUpPauseReason: "NEWER_GMAIL_CLIENT_RESPONSE",
         },
       });
     },
@@ -941,6 +1346,12 @@ export async function addInboundMessageFromImport(input: {
         sentAt: new Date().toISOString(),
         status: "RECEIVED",
       });
+      const lead = store.leads.find((item) => item.id === input.leadId);
+      if (lead) {
+        lead.lastClientReplyAt = new Date().toISOString();
+        lead.followUpPaused = true;
+        lead.followUpPauseReason = "NEWER_GMAIL_CLIENT_RESPONSE";
+      }
     },
   );
 }
