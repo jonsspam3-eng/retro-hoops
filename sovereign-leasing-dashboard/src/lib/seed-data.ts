@@ -15,7 +15,7 @@ export const seedUsers: TeamUser[] = [
   {
     id: "user_admin",
     name: "Ariana Chen",
-    email: "admin@sovereignnyc.com",
+    email: "Admin@srealty.nyc",
     phone: "212-555-1100",
     role: "ADMIN",
     passwordHash: pwHash,

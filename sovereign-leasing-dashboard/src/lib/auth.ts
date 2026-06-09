@@ -13,7 +13,14 @@ async function getUserByEmail(email: string): Promise<TeamUser | null> {
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: "insensitive",
+        },
+      },
+    });
     if (!user) return null;
     return {
       id: user.id,

@@ -36,7 +36,7 @@ export function ShellNav({ userName, role, children }: { userName: string; role:
       <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 p-4 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-2xl bg-[#050b23] p-5 text-white shadow-lg">
           <div className="mb-6 border-b border-white/20 pb-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-[#ddbda2]">Sovereign Associates</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-[#ddbda2]">Sovereign Realty NYC</p>
             <h1 className="text-xl font-semibold">Leasing Command</h1>
             <p className="mt-1 text-xs text-white/80">{userName} · {role.replaceAll("_", " ")}</p>
           </div>

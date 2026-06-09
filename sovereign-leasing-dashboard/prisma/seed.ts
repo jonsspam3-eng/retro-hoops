@@ -58,7 +58,7 @@ async function main() {
     prisma.user.create({
       data: {
         name: "Ariana Chen",
-        email: "admin@sovereignnyc.com",
+        email: "Admin@srealty.nyc",
         role: UserRole.ADMIN,
         phone: "212-555-1100",
         passwordHash,

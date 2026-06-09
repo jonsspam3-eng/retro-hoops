@@ -4,7 +4,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
-const demoEmail = "admin@sovereignnyc.com";
+const demoEmail = "Admin@srealty.nyc";
 const demoPassword = "Sovereign123!";
 
 async function runSignIn(email: string, password: string) {
@@ -50,7 +50,7 @@ export function LoginForm() {
       <input type="hidden" name="callbackUrl" value="/dashboard" />
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[#6d6f78]">Email</label>
-        <input name="email" type="email" placeholder="admin@sovereignnyc.com" defaultValue={demoEmail} required />
+        <input name="email" type="email" placeholder="Admin@srealty.nyc" defaultValue={demoEmail} required />
       </div>
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-[#6d6f78]">Password</label>

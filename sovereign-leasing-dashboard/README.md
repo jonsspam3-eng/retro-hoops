@@ -1,6 +1,6 @@
 # Sovereign Leasing Command
 
-Internal leasing inquiry dashboard for **Sovereign Associates / Sovereign Realty NYC**.
+Internal leasing inquiry dashboard for **Sovereign Realty NYC**.
 
 ## Phase 2 (stabilized)
 
