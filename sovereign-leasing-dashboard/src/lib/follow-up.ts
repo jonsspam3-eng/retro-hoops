@@ -93,7 +93,7 @@ export function groupPipelineLeads(leads: LeadRecord[], now = new Date()) {
     const lastContacted = toDateOrNull(lead.lastContactedAt);
     const lastClientReply = toDateOrNull(lead.lastClientReplyAt);
 
-    if (nextFollowUp && nextFollowUp >= startOfDay && nextFollowUp < endOfDay && !lead.followUpPaused) {
+    if (nextFollowUp && nextFollowUp >= now && nextFollowUp < endOfDay && !lead.followUpPaused) {
       dueToday.push(lead);
     }
     if (nextFollowUp && nextFollowUp < now && !lead.followUpPaused) {

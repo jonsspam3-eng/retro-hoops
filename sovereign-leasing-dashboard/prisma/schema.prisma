@@ -361,7 +361,7 @@ model ShowingAppointment {
   confirmedAt        DateTime?
   startsAt           DateTime?
   endsAt             DateTime?
-  status             ShowingStatus @default(REQUESTED)
+  status             ShowingStatus @default(SHOWING_REQUESTED)
   accessInstructions String?
   requiredDocuments  Json?
   createdAt          DateTime      @default(now())

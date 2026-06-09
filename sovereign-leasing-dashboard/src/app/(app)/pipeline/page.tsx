@@ -52,6 +52,9 @@ export default async function PipelinePage({
     listTemplates(),
     listFollowUpSequences(),
   ]);
+  
+  // Defensive fix: ensure sequences is always an array
+  const safeSequences = sequences ?? [];
   const buckets = groupPipelineLeads(leads);
   const listingById = new Map(listings.map((listing) => [listing.id, listing]));
   const firstFollowUpTemplate =
@@ -214,7 +217,7 @@ export default async function PipelinePage({
             Edit timing, template mapping, status, and listing/source targeting for follow-up automation.
           </p>
           <div className="mt-3 space-y-3">
-            {sequences.length === 0 ? (
+            {safeSequences.length === 0 ? (
               <form action={upsertFollowUpSequenceAction} className="rounded-xl border border-[#e8e2da] p-3">
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                   <input name="name" defaultValue="Default Sovereign Follow-Up" placeholder="Sequence name" required />
@@ -240,7 +243,7 @@ export default async function PipelinePage({
                 </div>
               </form>
             ) : null}
-            {sequences.map((sequence) => (
+            {safeSequences.map((sequence) => (
               <form key={sequence.id} action={upsertFollowUpSequenceAction} className="rounded-xl border border-[#e8e2da] p-3">
                 <input type="hidden" name="sequenceId" value={sequence.id} />
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-3">

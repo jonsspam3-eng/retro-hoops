@@ -90,7 +90,7 @@ test("groups pipeline buckets for due, overdue, stale, and qualified states", ()
         inquiryMessage: "msg",
         status: "FOLLOW_UP",
         followUpPaused: false,
-        nextFollowUpAt: "2026-06-09T10:00:00.000Z",
+        nextFollowUpAt: "2026-06-09T15:00:00.000Z",
         responsivenessScore: 0,
         completenessScore: 0,
         receivedAt: "2026-06-01T00:00:00.000Z",

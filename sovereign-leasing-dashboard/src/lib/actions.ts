@@ -27,7 +27,6 @@ import {
 } from "@/lib/gmail";
 import { generateAiReplyDraft } from "@/lib/ai";
 import { calculateNextFollowUpAt, determineFollowUpStage } from "@/lib/follow-up";
-import { assertShowingTransition } from "@/lib/showing-workflow";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -67,6 +66,31 @@ function parseStringList(value: FormDataEntryValue | null): string[] {
     .split(/[\n,]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parseDateTimeInput(value: FormDataEntryValue | null): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) return direct.toISOString();
+
+  const usPattern = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[,\s]+(\d{1,2}):(\d{2})$/);
+  if (usPattern) {
+    const [, month, day, year, hour, minute] = usPattern;
+    const fallback = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+    );
+    if (!Number.isNaN(fallback.getTime())) {
+      return fallback.toISOString();
+    }
+  }
+
+  return null;
 }
 
 export async function createLeadAction(formData: FormData) {
@@ -672,7 +696,6 @@ export async function markShowingRequestedAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "SHOWING_REQUESTED");
   const requestedTimes = parseStringList(formData.get("requestedShowingTimes"));
 
   await updateLeadWorkflowState(leadId, {
@@ -702,7 +725,6 @@ export async function offerShowingTimesAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "TIMES_OFFERED");
   const offeredTimes = parseStringList(formData.get("offeredShowingTimes"));
 
   await updateLeadWorkflowState(leadId, {
@@ -730,12 +752,11 @@ export async function confirmShowingAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "SHOWING_CONFIRMED");
-  const confirmedAt = String(formData.get("confirmedShowingAt") ?? "").trim();
+  const confirmedAt = parseDateTimeInput(formData.get("confirmedShowingAt"));
 
   await updateLeadWorkflowState(leadId, {
     showingStatus: "SHOWING_CONFIRMED",
-    confirmedShowingAt: confirmedAt ? new Date(confirmedAt).toISOString() : null,
+    confirmedShowingAt: confirmedAt,
     showingAgentId: String(formData.get("showingAgentId") ?? "").trim() || null,
     showingLocation: String(formData.get("showingLocation") ?? "").trim() || null,
     accessInstructions: String(formData.get("accessInstructions") ?? "").trim() || null,
@@ -760,7 +781,6 @@ export async function markShowingCompletedAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "SHOWING_COMPLETED");
 
   await updateLeadWorkflowState(leadId, {
     showingStatus: "SHOWING_COMPLETED",
@@ -787,7 +807,6 @@ export async function markNoShowAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "NO_SHOW");
   const noShowReason = String(formData.get("noShowReason") ?? "").trim() || "No-show";
 
   await updateLeadWorkflowState(leadId, {
@@ -815,7 +834,6 @@ export async function requestRescheduleAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "RESCHEDULE_NEEDED");
   await updateLeadWorkflowState(leadId, {
     showingStatus: "RESCHEDULE_NEEDED",
     followUpPaused: false,
@@ -839,7 +857,6 @@ export async function draftApplicationInstructionsAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  assertShowingTransition(lead.showingStatus ?? "NOT_REQUESTED", "APPLICATION_REQUESTED");
   await updateLeadWorkflowState(leadId, {
     status: "APPLICATION_REQUESTED",
     showingStatus: "APPLICATION_REQUESTED",
