@@ -1,15 +1,38 @@
-import {
-  EmailMode,
-  InquirySource,
-  LeadStatus,
-  ListingStatus,
-  PrismaClient,
-  QualificationStatus,
-  UserRole,
-} from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+const UserRole = {
+  ADMIN: "ADMIN",
+  AGENT: "AGENT",
+  ASSISTANT: "ASSISTANT",
+  READ_ONLY: "READ_ONLY",
+} as const;
+
+const InquirySource = {
+  STREETEASY: "STREETEASY",
+  WEBSITE: "WEBSITE",
+} as const;
+
+const LeadStatus = {
+  QUALIFIED: "QUALIFIED",
+  POSSIBLY_QUALIFIED: "POSSIBLY_QUALIFIED",
+} as const;
+
+const ListingStatus = {
+  ACTIVE: "ACTIVE",
+} as const;
+
+const QualificationStatus = {
+  QUALIFIED: "QUALIFIED",
+  POSSIBLY_QUALIFIED: "POSSIBLY_QUALIFIED",
+} as const;
+
+const EmailMode = {
+  DRAFT_REVIEW: "DRAFT_REVIEW",
+  AUTO_SEND: "AUTO_SEND",
+} as const;
 
 async function main() {
   await prisma.auditLog.deleteMany();
