@@ -161,7 +161,7 @@ export default async function LeadDetailPage({
               <input type="hidden" name="leadId" value={lead.id} />
               <select name="listingId" defaultValue={lead.listingId ?? ""}>
                 <option value="">Unmatched listing</option>
-                {listings.map((row) => (
+                {listings.map((row: { id: string; address: string; apartmentNumber: string }) => (
                   <option key={row.id} value={row.id}>
                     {row.address} {row.apartmentNumber}
                   </option>
@@ -194,7 +194,7 @@ export default async function LeadDetailPage({
               </form>
             </div>
             <div className="mt-3 space-y-2 text-sm">
-              {qualifications.map((row) => (
+              {qualifications.map((row: { id: string; status: string; score: number; notes: string }) => (
                 <div key={row.id} className="rounded-xl border border-[#ece8e3] p-2">
                   <p className="font-semibold">{row.status.replaceAll("_", " ")} · {row.score}</p>
                   <p>{row.notes}</p>
@@ -206,7 +206,14 @@ export default async function LeadDetailPage({
           <div className="card">
             <h3 className="text-lg font-semibold">Email thread history</h3>
             <div className="mt-3 space-y-2">
-              {history.map((message) => (
+              {history.map((message: {
+                id: string;
+                direction: string;
+                sentAt: string;
+                status: string;
+                subject: string;
+                bodyText: string;
+              }) => (
                 <div key={message.id} className="rounded-xl border border-[#ece8e3] p-3">
                   <p className="text-xs text-[#6d6f78]">
                     {message.direction} · {formatIso(message.sentAt)} · {message.status}
@@ -227,8 +234,8 @@ export default async function LeadDetailPage({
               <select name="agentId" defaultValue={lead.assignedAgentId ?? ""}>
                 <option value="">Unassigned</option>
                 {team
-                  .filter((member) => member.role === "AGENT" || member.role === "ADMIN")
-                  .map((member) => (
+                  .filter((member: { role: string }) => member.role === "AGENT" || member.role === "ADMIN")
+                  .map((member: { id: string; name: string }) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
                     </option>
@@ -244,7 +251,7 @@ export default async function LeadDetailPage({
             </form>
 
             <div className="mt-3 space-y-2 text-sm">
-              {notes.map((note) => (
+              {notes.map((note: { id: string; content: string; createdAt: string }) => (
                 <div key={note.id} className="rounded-xl border border-[#ece8e3] p-2">
                   <p>{note.content}</p>
                   <p className="mt-1 text-xs text-[#6d6f78]">{formatIso(note.createdAt)}</p>
@@ -280,7 +287,7 @@ export default async function LeadDetailPage({
           <div className="card">
             <h3 className="text-lg font-semibold">Activity log</h3>
             <div className="mt-3 space-y-2 text-sm">
-              {activity.map((entry) => (
+              {activity.map((entry: { id: string; action: string; createdAt: string }) => (
                 <div key={entry.id} className="rounded-xl border border-[#ece8e3] p-2">
                   <p className="font-semibold">{entry.action.replaceAll("_", " ")}</p>
                   <p className="text-xs text-[#6d6f78]">{formatIso(entry.createdAt)}</p>
