@@ -488,7 +488,11 @@ async function setConnectionOperationError(
     const store = getFallbackStore();
     const connection = store.gmailConnections.find((item) => item.userId === userId && item.isActive);
     if (connection) {
-      (connection as Record<string, unknown>)[field] = message;
+      if (field === "lastImportError") {
+        connection.lastImportError = message;
+      } else {
+        connection.lastDraftError = message;
+      }
     }
     return;
   }

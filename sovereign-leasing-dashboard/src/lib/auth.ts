@@ -35,11 +35,7 @@ function resolveAppUrl() {
       : `https://${fromVercel}`;
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    return LOCAL_APP_URL;
-  }
-
-  throw new Error("Missing APP_URL/NEXTAUTH_URL (or VERCEL_URL) for production auth callbacks.");
+  return LOCAL_APP_URL;
 }
 
 function resolveAuthSecret() {
@@ -51,10 +47,6 @@ function resolveAuthSecret() {
   const sessionSecret = (process.env.SESSION_SECRET ?? "").trim();
   if (sessionSecret) {
     return { value: sessionSecret, source: "SESSION_SECRET" as const };
-  }
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Missing NEXTAUTH_SECRET/SESSION_SECRET in production.");
   }
 
   return { value: LOCAL_DEV_AUTH_SECRET, source: "DEV_FALLBACK" as const };

@@ -19,7 +19,7 @@ test("creates draft in mock provider and updates lead status", async () => {
   assert.equal(result.draftResult.provider, "MOCK");
   const lead = await getLeadById("lead_lee_1");
   assert.equal(lead?.status, "DRAFT_CREATED");
-  assert.ok(result.draftResult.body.includes("Review before sending"));
+  assert.ok(result.draftResult.body.includes("Human Review Required"));
 });
 
 test("prevents duplicate import of same mock Gmail message", async () => {

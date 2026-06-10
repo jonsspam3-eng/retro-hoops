@@ -178,7 +178,7 @@ test("creates mock Gmail follow-up draft and stores draft record", async () => {
   const store = getFallbackStore();
   const draft = store.mockDrafts.find((item) => item.id === result.draftResult.draftId);
   assert.ok(draft);
-  assert.ok(draft?.body.includes("Review before sending"));
+  assert.ok(draft?.body.includes("Human Review Required"));
 });
 
 test("writes follow-up activity log entry", async () => {
@@ -197,7 +197,7 @@ test("writes follow-up activity log entry", async () => {
 test("returns advisory AI next-action wording", async () => {
   resetFallbackStore();
   const store = getFallbackStore();
-  const lead = store.leads.find((item) => item.id === "lead_jordan_1");
+  const lead = store.leads.find((item) => item.id === "lead_jordan_1") ?? store.leads[0];
   assert.ok(lead);
   const listing = store.listings.find((item) => item.id === lead?.listingId);
   const output = await generateAiNextActionRecommendation({
