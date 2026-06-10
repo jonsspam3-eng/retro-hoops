@@ -18,8 +18,57 @@ import {
   shouldRequireProviderMfa,
 } from "@/lib/security";
 
+const LOCAL_APP_URL = "http://localhost:3000";
+const LOCAL_DEV_AUTH_SECRET = "local-dev-auth-secret-sovereign-leasing";
+
+function resolveAppUrl() {
+  const fromNextAuthUrl = (process.env.NEXTAUTH_URL ?? "").trim();
+  if (fromNextAuthUrl) return fromNextAuthUrl;
+
+  const fromAppUrl = (process.env.APP_URL ?? "").trim();
+  if (fromAppUrl) return fromAppUrl;
+
+  const fromVercel = (process.env.VERCEL_URL ?? "").trim();
+  if (fromVercel) {
+    return fromVercel.startsWith("http://") || fromVercel.startsWith("https://")
+      ? fromVercel
+      : `https://${fromVercel}`;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return LOCAL_APP_URL;
+  }
+
+  throw new Error("Missing APP_URL/NEXTAUTH_URL (or VERCEL_URL) for production auth callbacks.");
+}
+
+function resolveAuthSecret() {
+  const nextAuthSecret = (process.env.NEXTAUTH_SECRET ?? "").trim();
+  if (nextAuthSecret) {
+    return { value: nextAuthSecret, source: "NEXTAUTH_SECRET" as const };
+  }
+
+  const sessionSecret = (process.env.SESSION_SECRET ?? "").trim();
+  if (sessionSecret) {
+    return { value: sessionSecret, source: "SESSION_SECRET" as const };
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Missing NEXTAUTH_SECRET/SESSION_SECRET in production.");
+  }
+
+  return { value: LOCAL_DEV_AUTH_SECRET, source: "DEV_FALLBACK" as const };
+}
+
+const resolvedAppUrl = resolveAppUrl();
+const resolvedAuthSecret = resolveAuthSecret();
+
+if (!process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = resolvedAppUrl;
+}
+
 function appUrl() {
-  return process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+  return resolvedAppUrl;
 }
 
 function hasDatabaseUrlConfigured() {
@@ -295,13 +344,13 @@ if (googleProviderConfigured()) {
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET ?? process.env.SESSION_SECRET,
+  secret: resolvedAuthSecret.value,
   session: {
     strategy: "jwt",
     maxAge: 60 * 60 * 8,
     updateAge: 60 * 30,
   },
-  useSecureCookies: process.env.NODE_ENV === "production",
+  useSecureCookies: resolvedAppUrl.startsWith("https://") || process.env.NODE_ENV === "production",
   pages: {
     signIn: "/login",
     error: "/login",
