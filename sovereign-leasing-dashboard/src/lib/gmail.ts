@@ -58,8 +58,16 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/gmail.compose",
   "https://www.googleapis.com/auth/gmail.readonly",
   "openid",
-  "email",
+  "https://www.googleapis.com/auth/userinfo.email",
 ];
+
+function gmailOAuthConfig() {
+  return {
+    clientId: process.env.GOOGLE_GMAIL_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID ?? "",
+    clientSecret: process.env.GOOGLE_GMAIL_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET ?? "",
+    redirectUri: process.env.GOOGLE_GMAIL_REDIRECT_URI ?? process.env.GOOGLE_REDIRECT_URI ?? "",
+  };
+}
 
 type GmailConnectionState = {
   mode: "LIVE" | "MOCK";
@@ -112,10 +120,11 @@ export interface GmailProvider {
 }
 
 function isGoogleEnvConfigured() {
+  const config = gmailOAuthConfig();
   return Boolean(
-    process.env.GOOGLE_CLIENT_ID &&
-      process.env.GOOGLE_CLIENT_SECRET &&
-      process.env.GOOGLE_REDIRECT_URI,
+    config.clientId &&
+      config.clientSecret &&
+      config.redirectUri,
   );
 }
 
@@ -128,7 +137,8 @@ function getAppBaseUrl(): string {
 }
 
 export function getRequiredGoogleRedirectUri(): string {
-  return process.env.GOOGLE_REDIRECT_URI || `${getAppBaseUrl()}/api/gmail/callback`;
+  const config = gmailOAuthConfig();
+  return config.redirectUri || `${getAppBaseUrl()}/api/gmail/callback`;
 }
 
 export function getGoogleScopes(): string[] {
@@ -136,12 +146,16 @@ export function getGoogleScopes(): string[] {
 }
 
 export function validateOAuthConfig() {
+  const config = gmailOAuthConfig();
   const missing: string[] = [];
-  if (!process.env.GOOGLE_CLIENT_ID) missing.push("GOOGLE_CLIENT_ID");
-  if (!process.env.GOOGLE_CLIENT_SECRET) missing.push("GOOGLE_CLIENT_SECRET");
-  if (!process.env.GOOGLE_REDIRECT_URI) missing.push("GOOGLE_REDIRECT_URI");
+  if (!config.clientId) missing.push("GOOGLE_GMAIL_CLIENT_ID");
+  if (!config.clientSecret) missing.push("GOOGLE_GMAIL_CLIENT_SECRET");
+  if (!config.redirectUri) missing.push("GOOGLE_GMAIL_REDIRECT_URI");
   if (!process.env.DATABASE_URL) missing.push("DATABASE_URL");
   if (!process.env.NEXTAUTH_URL && !process.env.APP_URL) missing.push("NEXTAUTH_URL or APP_URL");
+  if (!process.env.ENCRYPTION_KEY && !process.env.GMAIL_TOKEN_ENCRYPTION_KEY) {
+    missing.push("ENCRYPTION_KEY");
+  }
   return {
     configured: missing.length === 0,
     missing,
@@ -151,7 +165,7 @@ export function validateOAuthConfig() {
 }
 
 function tokenSecret(): string {
-  return process.env.GMAIL_TOKEN_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || "";
+  return process.env.ENCRYPTION_KEY || process.env.GMAIL_TOKEN_ENCRYPTION_KEY || "";
 }
 
 function deriveKey(secret: string): Buffer {
@@ -161,7 +175,7 @@ function deriveKey(secret: string): Buffer {
 function encryptToken(value: string): string {
   const secret = tokenSecret();
   if (!secret) {
-    throw new Error("GMAIL_TOKEN_ENCRYPTION_KEY (or NEXTAUTH_SECRET) is required for OAuth token storage.");
+    throw new Error("ENCRYPTION_KEY (or GMAIL_TOKEN_ENCRYPTION_KEY) is required for OAuth token storage.");
   }
   const key = deriveKey(secret);
   const iv = crypto.randomBytes(12);
@@ -174,7 +188,7 @@ function encryptToken(value: string): string {
 function decryptToken(value: string): string {
   const secret = tokenSecret();
   if (!secret) {
-    throw new Error("GMAIL_TOKEN_ENCRYPTION_KEY (or NEXTAUTH_SECRET) is required for OAuth token storage.");
+    throw new Error("ENCRYPTION_KEY (or GMAIL_TOKEN_ENCRYPTION_KEY) is required for OAuth token storage.");
   }
   const [ivRaw, encryptedRaw, tagRaw] = value.split(".");
   const key = deriveKey(secret);
@@ -192,16 +206,17 @@ function decryptToken(value: string): string {
 }
 
 function createOAuthClient() {
+  const config = gmailOAuthConfig();
   if (!isGoogleEnvConfigured()) {
     throw new Error(
-      "Google OAuth is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI.",
+      "Google OAuth is not configured. Set GOOGLE_GMAIL_CLIENT_ID, GOOGLE_GMAIL_CLIENT_SECRET, and GOOGLE_GMAIL_REDIRECT_URI.",
     );
   }
 
   return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI,
+    config.clientId,
+    config.clientSecret,
+    config.redirectUri,
   );
 }
 
@@ -319,11 +334,11 @@ export function normalizeGmailError(error: unknown): { code: GmailErrorCode; mes
   if (raw.includes("redirect_uri_mismatch")) {
     return {
       code: "redirect_uri_mismatch",
-      message: "Google OAuth redirect URI mismatch. Verify GOOGLE_REDIRECT_URI in app settings and Google Cloud Console.",
+      message: "Google OAuth redirect URI mismatch. Verify GOOGLE_GMAIL_REDIRECT_URI in app settings and Google Cloud Console.",
     };
   }
   if (raw.includes("invalid_client")) {
-    return { code: "invalid_client", message: "Invalid Google OAuth client credentials. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." };
+    return { code: "invalid_client", message: "Invalid Google OAuth client credentials. Check GOOGLE_GMAIL_CLIENT_ID and GOOGLE_GMAIL_CLIENT_SECRET." };
   }
   if (raw.includes("access_denied")) {
     return { code: "access_denied", message: "Access denied in Google OAuth consent flow." };
@@ -337,7 +352,7 @@ export function normalizeGmailError(error: unknown): { code: GmailErrorCode; mes
   if (raw.includes("insufficient") && raw.includes("scope")) {
     return {
       code: "insufficient_scopes",
-      message: "Connected Gmail account is missing required scopes (gmail.readonly, gmail.compose, openid, email). Reconnect Gmail.",
+      message: "Connected Gmail account is missing required scopes (gmail.readonly, gmail.compose, openid, userinfo.email). Reconnect Gmail.",
     };
   }
   if (raw.includes("gmail api has not been used") || raw.includes("access_not_configured") || raw.includes("api not enabled")) {
@@ -399,6 +414,8 @@ async function getStoredConnection(userId: string): Promise<
       refreshTokenEncrypted?: string | null;
       scope?: string | null;
       tokenType?: string | null;
+      lastImportError?: string | null;
+      lastDraftError?: string | null;
     })
   | null
 > {
@@ -428,6 +445,8 @@ async function getStoredConnection(userId: string): Promise<
       isActive: connection.isActive,
       expiresAt: connection.expiresAt?.toISOString() ?? null,
       lastError: connection.lastError,
+      lastImportError: connection.lastImportError,
+      lastDraftError: connection.lastDraftError,
       accessTokenEncrypted: connection.accessTokenEncrypted,
       refreshTokenEncrypted: connection.refreshTokenEncrypted,
       scope: connection.scope,
@@ -460,6 +479,30 @@ async function setConnectionLastError(userId: string, lastError: string | null) 
   });
 }
 
+async function setConnectionOperationError(
+  userId: string,
+  field: "lastImportError" | "lastDraftError",
+  message: string | null,
+) {
+  if (!process.env.DATABASE_URL) {
+    const store = getFallbackStore();
+    const connection = store.gmailConnections.find((item) => item.userId === userId && item.isActive);
+    if (connection) {
+      (connection as Record<string, unknown>)[field] = message;
+    }
+    return;
+  }
+
+  await prisma.gmailConnection.updateMany({
+    where: {
+      userId,
+      provider: "GOOGLE",
+      isActive: true,
+    },
+    data: { [field]: message },
+  });
+}
+
 async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
   const encryptedAccess = encryptToken(tokenPayload.accessToken);
   const encryptedRefresh = tokenPayload.refreshToken ? encryptToken(tokenPayload.refreshToken) : null;
@@ -475,6 +518,8 @@ async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
       isActive: true,
       expiresAt: tokenPayload.expiryDate ? new Date(tokenPayload.expiryDate).toISOString() : existing?.expiresAt ?? null,
       lastError: null,
+      lastImportError: existing?.lastImportError ?? null,
+      lastDraftError: existing?.lastDraftError ?? null,
       accessTokenEncrypted: encryptedAccess,
       refreshTokenEncrypted: encryptedRefresh ?? existing?.refreshTokenEncrypted ?? null,
       scope: tokenPayload.scope ?? existing?.scope ?? null,
@@ -510,6 +555,8 @@ async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
       tokenType: tokenPayload.tokenType ?? existing?.tokenType ?? null,
       expiresAt: tokenPayload.expiryDate ? new Date(tokenPayload.expiryDate) : existing?.expiresAt ?? null,
       lastError: null,
+      lastImportError: null,
+      lastDraftError: null,
     },
     create: {
       userId,
@@ -521,6 +568,8 @@ async function saveConnection(userId: string, tokenPayload: OAuthTokenPayload) {
       scope: tokenPayload.scope,
       tokenType: tokenPayload.tokenType,
       expiresAt: tokenPayload.expiryDate ? new Date(tokenPayload.expiryDate) : null,
+      lastImportError: null,
+      lastDraftError: null,
     },
   });
 }
@@ -570,9 +619,22 @@ async function buildAuthorizedClient(
       });
       oauthClient.setCredentials(refreshed.credentials);
       await setConnectionLastError(userId, null);
+      await writeAuditLog({
+        actorId: userId,
+        action: "GMAIL_TOKEN_REFRESH_SUCCESS",
+        entityType: "GMAIL_CONNECTION",
+        entityId: userId,
+      });
     } catch (error) {
       const normalized = normalizeGmailError(error);
       await setConnectionLastError(userId, normalized.message);
+      await writeAuditLog({
+        actorId: userId,
+        action: "GMAIL_TOKEN_REFRESH_FAILURE",
+        entityType: "GMAIL_CONNECTION",
+        entityId: userId,
+        metadata: { error: normalized.message },
+      });
       return null;
     }
   }
@@ -770,6 +832,8 @@ export async function getGmailConnectionState(userId: string): Promise<GmailConn
           accessTokenExists: Boolean(connection.accessTokenEncrypted),
           refreshTokenExists: Boolean(connection.refreshTokenEncrypted),
           lastError: connection.lastError,
+          lastImportError: connection.lastImportError,
+          lastDraftError: connection.lastDraftError,
         }
       : null,
     message: `Connected Gmail account: ${connection.email ?? "Unknown"}`,
@@ -911,6 +975,7 @@ export async function importSelectedGmailMessages(input: {
   if (input.messageIds.length === 0) {
     return [];
   }
+  await setConnectionOperationError(input.userId, "lastImportError", null);
 
   const [{ messages }, listings, existingLeads] = await Promise.all([
     fetchGmailInquiryMessages({ userId: input.userId, includeNonInquiry: true }),
@@ -941,6 +1006,18 @@ export async function importSelectedGmailMessages(input: {
     });
 
     if (duplicate) {
+      await writeAuditLog({
+        actorId: input.actorId,
+        leadId: duplicate.duplicateLead.id,
+        action: "GMAIL_DUPLICATE_IMPORT_BLOCKED",
+        entityType: "LEAD",
+        entityId: duplicate.duplicateLead.id,
+        metadata: {
+          reason: duplicate.reason,
+          gmailMessageId: parsed.gmailMessageId,
+          gmailThreadId: parsed.gmailThreadId,
+        },
+      });
       outcomes.push({
         messageId: message.id,
         leadId: duplicate.duplicateLead.id,
@@ -1003,6 +1080,18 @@ export async function importSelectedGmailMessages(input: {
           gmailThreadId: parsed.gmailThreadId,
         });
         if (existing) {
+          await writeAuditLog({
+            actorId: input.actorId,
+            leadId: existing.id,
+            action: "GMAIL_DUPLICATE_IMPORT_BLOCKED",
+            entityType: "LEAD",
+            entityId: existing.id,
+            metadata: {
+              reason: "gmail_message_id",
+              gmailMessageId: parsed.gmailMessageId,
+              gmailThreadId: parsed.gmailThreadId,
+            },
+          });
           outcomes.push({
             messageId: message.id,
             leadId: existing.id,
@@ -1013,6 +1102,7 @@ export async function importSelectedGmailMessages(input: {
         }
       }
       await setConnectionLastError(input.userId, normalized.message);
+      await setConnectionOperationError(input.userId, "lastImportError", normalized.message);
       throw new Error(normalized.message);
     }
 
@@ -1021,7 +1111,7 @@ export async function importSelectedGmailMessages(input: {
       subject: parsed.subject,
       bodyText: message.bodyText || parsed.body,
       senderEmail: parsed.clientEmail,
-      recipientEmail: "leasing@sovereignnyc.com",
+      recipientEmail: "leasing@srealty.nyc",
       gmailMessageId: parsed.gmailMessageId,
       gmailThreadId: parsed.gmailThreadId,
     });
@@ -1050,6 +1140,7 @@ export async function importSelectedGmailMessages(input: {
     });
   }
 
+  await setConnectionOperationError(input.userId, "lastImportError", null);
   return outcomes;
 }
 
@@ -1062,6 +1153,7 @@ export async function createGmailDraftFromLead(input: {
   showingTimes?: string;
   applicationLink?: string;
 }) {
+  await setConnectionOperationError(input.userId, "lastDraftError", null);
   const lead = await getLeadById(input.leadId);
   if (!lead) {
     throw new Error("Lead not found");
@@ -1097,8 +1189,10 @@ export async function createGmailDraftFromLead(input: {
 
 ---
 AI-generated draft
-Review before sending
-Do not rely on AI for final applicant approval
+Draft Created — Human Review Required
+No emails are sent automatically.
+AI output is advisory only.
+Human reviewers must make final leasing decisions using legitimate rental criteria and documented brokerage policy.
 
 AI assistant suggestion:
 ${aiReply.content}
@@ -1136,6 +1230,7 @@ ${missingAnalysis.content}`;
     if (!auth) {
       const normalized = normalizeGmailError("Connected Gmail credentials are unavailable or expired.");
       await setConnectionLastError(input.userId, normalized.message);
+      await setConnectionOperationError(input.userId, "lastDraftError", normalized.message);
       throw new Error(normalized.message);
     }
 
@@ -1159,9 +1254,11 @@ ${missingAnalysis.content}`;
         body: request.body,
       };
       await setConnectionLastError(input.userId, null);
+      await setConnectionOperationError(input.userId, "lastDraftError", null);
     } catch (error) {
       const normalized = normalizeGmailError(error);
       await setConnectionLastError(input.userId, normalized.message);
+      await setConnectionOperationError(input.userId, "lastDraftError", normalized.message);
       throw new Error(normalized.message);
     }
   } else {
@@ -1183,6 +1280,7 @@ ${missingAnalysis.content}`;
       subject: request.subject,
       body: request.body,
     };
+    await setConnectionOperationError(input.userId, "lastDraftError", null);
   }
 
   await addOutboundMessage({
@@ -1222,27 +1320,14 @@ ${missingAnalysis.content}`;
 export async function disconnectGmailConnection(userId: string) {
   if (!process.env.DATABASE_URL) {
     const store = getFallbackStore();
-    store.gmailConnections = store.gmailConnections.map((connection) =>
-      connection.userId === userId
-        ? {
-            ...connection,
-            isActive: false,
-            lastError: null,
-          }
-        : connection,
-    );
+    store.gmailConnections = store.gmailConnections.filter((connection) => connection.userId !== userId);
     return;
   }
 
-  await prisma.gmailConnection.updateMany({
+  await prisma.gmailConnection.deleteMany({
     where: {
       userId,
       provider: "GOOGLE",
-      isActive: true,
-    },
-    data: {
-      isActive: false,
-      lastError: null,
     },
   });
 }
@@ -1287,6 +1372,7 @@ export async function getGmailMessageDetail(input: {
 export async function getGmailDebugSnapshot(userId: string) {
   const state = await getGmailConnectionState(userId);
   const oauth = validateOAuthConfig();
+  const oauthConfig = gmailOAuthConfig();
   const grantedScopes = state.connection?.scope?.split(/\s+/).filter(Boolean) ?? [];
 
   let tokenRefreshWorks: boolean | null = null;
@@ -1313,10 +1399,14 @@ export async function getGmailDebugSnapshot(userId: string) {
     tokenRefreshWorks,
     tokenRefreshMessage,
     grantedScopes,
-    currentRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? null,
+    environment: process.env.NODE_ENV ?? "development",
+    appUrl: getAppBaseUrl(),
+    currentRedirectUri: oauthConfig.redirectUri || null,
     requiredRedirectUri: oauth.requiredRedirectUri,
     requiredScopes: oauth.scopes,
     lastGmailApiError: state.connection?.lastError ?? null,
+    lastImportError: state.connection?.lastImportError ?? null,
+    lastDraftCreationError: state.connection?.lastDraftError ?? null,
     oauthConfigMissing: oauth.missing,
     statusMessage: state.message,
   };

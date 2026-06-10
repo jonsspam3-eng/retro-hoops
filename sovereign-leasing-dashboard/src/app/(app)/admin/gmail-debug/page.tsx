@@ -4,6 +4,7 @@ import {
 } from "@/lib/actions";
 import { requireAppUser } from "@/lib/auth";
 import { getGmailDebugSnapshot, getGmailMessageDetail } from "@/lib/gmail";
+import { debugToolsEnabled, gmailSettingsRoles, hasRole } from "@/lib/security";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +25,16 @@ export default async function GmailDebugPage({
   }>;
 }) {
   const user = await requireAppUser();
-  if (user.role !== "ADMIN") {
+  if (!hasRole(user.role, gmailSettingsRoles)) {
+    redirect("/dashboard");
+  }
+  if (process.env.NODE_ENV === "production" && !debugToolsEnabled()) {
     redirect("/dashboard");
   }
 
   const params = (await searchParams) ?? {};
   const snapshot = await getGmailDebugSnapshot(user.id);
+  const currentAppUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
   const selectedMessageId = params.messageId ? String(params.messageId) : undefined;
   const messageDetail = selectedMessageId
     ? await getGmailMessageDetail({ userId: user.id, messageId: selectedMessageId })
@@ -40,7 +45,10 @@ export default async function GmailDebugPage({
       <div className="card">
         <h2 className="text-xl font-semibold">Admin Gmail Debug</h2>
         <p className="mt-1 text-sm text-[#6d6f78]">
-          Internal diagnostics for Sovereign Realty NYC Gmail integration.
+          Internal diagnostics for Sovereign Realty NYC Gmail integration and Gmail Import Access.
+        </p>
+        <p className="mt-2 text-xs text-[#6d6f78]">
+          Environment: {process.env.NODE_ENV ?? "development"} · App URL: {currentAppUrl}
         </p>
       </div>
 
@@ -64,7 +72,7 @@ export default async function GmailDebugPage({
           <p className="text-xs uppercase tracking-wide text-[#6d6f78]">Connection</p>
           <p className="mt-1 text-sm font-medium">{snapshot.mode === "LIVE" ? "Live Gmail" : "Mock Gmail"}</p>
           <p className="text-xs text-[#6d6f78]">{snapshot.statusMessage}</p>
-          <p className="mt-2 text-sm">Connected email: {snapshot.connectedEmail ?? "Not connected"}</p>
+          <p className="mt-2 text-sm">Connected Gmail Account: {snapshot.connectedEmail ?? "Not connected"}</p>
           <p className="text-sm">Access token exists: {snapshot.accessTokenExists ? "Yes" : "No"}</p>
           <p className="text-sm">Refresh token exists: {snapshot.refreshTokenExists ? "Yes" : "No"}</p>
           <p className="text-sm">
@@ -85,6 +93,8 @@ export default async function GmailDebugPage({
           <p className="mt-2 text-sm">Granted scopes: {snapshot.grantedScopes.join(", ") || "None"}</p>
           <p className="text-sm">Required scopes: {snapshot.requiredScopes.join(", ")}</p>
           <p className="mt-2 text-sm">Last Gmail API error: {snapshot.lastGmailApiError ?? "None"}</p>
+          <p className="text-sm">Last import error: {snapshot.lastImportError ?? "None"}</p>
+          <p className="text-sm">Last draft creation error: {snapshot.lastDraftCreationError ?? "None"}</p>
           {snapshot.oauthConfigMissing.length ? (
             <p className="text-sm text-rose-700">
               Missing env vars: {snapshot.oauthConfigMissing.join(", ")}
@@ -98,6 +108,9 @@ export default async function GmailDebugPage({
       <div className="card">
         <p className="text-sm font-semibold">Debug actions</p>
         <div className="mt-3 flex flex-wrap gap-2">
+          <a href="/api/gmail/connect" className="inline-flex items-center rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]">
+            Connect Gmail
+          </a>
           <form action={runGmailDebugActionForm}>
             <input type="hidden" name="action" value="test_connection" />
             <button type="submit">Test Gmail Connection</button>

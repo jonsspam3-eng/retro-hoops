@@ -1,5 +1,7 @@
 import { getAppSession } from "@/lib/auth";
 import { completeGoogleOAuth, normalizeGmailError } from "@/lib/gmail";
+import { writeAuditLog } from "@/lib/audit";
+import { gmailSettingsRoles, hasRole } from "@/lib/security";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -7,6 +9,9 @@ export async function GET(request: Request) {
   const appUrl = process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
   if (!session?.user?.id) {
     return NextResponse.redirect(new URL("/login", appUrl));
+  }
+  if (!hasRole(session.user.role, gmailSettingsRoles)) {
+    return NextResponse.redirect(new URL("/dashboard", appUrl));
   }
 
   const url = new URL(request.url);
@@ -46,9 +51,22 @@ export async function GET(request: Request) {
     }
 
     await completeGoogleOAuth(code, session.user.id);
+    await writeAuditLog({
+      actorId: session.user.id,
+      action: "GMAIL_CONNECTED",
+      entityType: "GMAIL_CONNECTION",
+      entityId: session.user.id,
+    });
     return NextResponse.redirect(new URL("/gmail-import?connected=1", appUrl));
   } catch (error) {
     const normalized = normalizeGmailError(error);
+    await writeAuditLog({
+      actorId: session.user.id,
+      action: "GMAIL_CONNECT_FAILED",
+      entityType: "GMAIL_CONNECTION",
+      entityId: session.user.id,
+      metadata: { error: normalized.message },
+    });
     return NextResponse.redirect(
       new URL(`/gmail-import?oauth_error=${encodeURIComponent(normalized.message)}`, appUrl),
     );

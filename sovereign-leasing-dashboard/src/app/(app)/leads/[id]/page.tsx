@@ -276,7 +276,9 @@ export default async function LeadDetailPage({
               <select name="agentId" defaultValue={lead.assignedAgentId ?? ""}>
                 <option value="">Unassigned</option>
                 {team
-                  .filter((member: { role: string }) => member.role === "AGENT" || member.role === "ADMIN")
+                  .filter((member: { role: string }) =>
+                    ["SUPER_ADMIN", "ADMIN", "MANAGER", "AGENT"].includes(member.role),
+                  )
                   .map((member: { id: string; name: string }) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
@@ -384,7 +386,9 @@ export default async function LeadDetailPage({
               <select name="showingAgentId" defaultValue={lead.showingAgentId ?? ""}>
                 <option value="">Select showing agent</option>
                 {team
-                  .filter((member: { role: string }) => member.role === "AGENT" || member.role === "ADMIN")
+                  .filter((member: { role: string }) =>
+                    ["SUPER_ADMIN", "ADMIN", "MANAGER", "AGENT"].includes(member.role),
+                  )
                   .map((member: { id: string; name: string }) => (
                     <option key={member.id} value={member.id}>
                       {member.name}

@@ -263,10 +263,16 @@ export async function listTeamMembers(): Promise<TeamUser[]> {
         id: user.id,
         name: user.name,
         email: user.email,
+        googleSub: user.googleSub,
         phone: user.phone,
         role: user.role,
         passwordHash: user.passwordHash,
         isActive: user.isActive,
+        failedLoginAttempts: user.failedLoginAttempts,
+        lockedUntil: user.lockedUntil?.toISOString() ?? null,
+        lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+        lastLoginProvider: user.lastLoginProvider ?? null,
+        requireGoogleMfa: user.requireGoogleMfa,
       }));
     },
     () => getFallbackStore().users,
@@ -836,19 +842,26 @@ export async function createTeamMember(input: {
       const row = await prisma.user.create({
         data: {
           name: input.name,
-          email: input.email,
+          email: input.email.toLowerCase(),
           role: input.role as never,
           passwordHash: input.passwordHash,
+          requireGoogleMfa: ["SUPER_ADMIN", "ADMIN"].includes(input.role),
         },
       });
       return {
         id: row.id,
         name: row.name,
         email: row.email,
+        googleSub: row.googleSub,
         phone: row.phone,
         role: row.role,
         passwordHash: row.passwordHash,
         isActive: row.isActive,
+        failedLoginAttempts: row.failedLoginAttempts,
+        lockedUntil: row.lockedUntil?.toISOString() ?? null,
+        lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
+        lastLoginProvider: row.lastLoginProvider ?? null,
+        requireGoogleMfa: row.requireGoogleMfa,
       };
     },
     () => {
@@ -860,6 +873,11 @@ export async function createTeamMember(input: {
         role: input.role,
         passwordHash: input.passwordHash,
         isActive: true,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: null,
+        lastLoginProvider: null,
+        requireGoogleMfa: ["SUPER_ADMIN", "ADMIN"].includes(input.role),
       };
       store.users.push(member);
       return member;

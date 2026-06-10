@@ -9,7 +9,9 @@
     "lint": "eslint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/lib/tests/*.test.ts"
   },

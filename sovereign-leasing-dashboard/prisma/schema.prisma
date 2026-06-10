@@ -8,8 +8,11 @@ datasource db {
 }
 
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
+  MANAGER
   AGENT
+  MARKETING_ASSISTANT
   ASSISTANT
   READ_ONLY
 }
@@ -113,10 +116,16 @@ model User {
   id              String              @id @default(cuid())
   name            String
   email           String              @unique
+  googleSub       String?             @unique
   phone           String?
   role            UserRole
   passwordHash    String
   isActive        Boolean             @default(true)
+  failedLoginAttempts Int             @default(0)
+  lockedUntil     DateTime?
+  lastLoginAt     DateTime?
+  lastLoginProvider String?
+  requireGoogleMfa Boolean            @default(false)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
   assignedLeads   Lead[]              @relation("LeadAssignedAgent")
@@ -125,6 +134,8 @@ model User {
   notes           LeadNote[]
   auditLogs       AuditLog[]
   gmailConnection GmailConnection[]
+
+  @@index([role, isActive])
 }
 
 model Listing {
@@ -238,6 +249,7 @@ model Lead {
   @@index([showingAgentId])
   @@index([nextFollowUpAt])
   @@index([gmailThreadId])
+  @@unique([gmailThreadId, email])
 }
 
 model LeadQualification {
@@ -434,6 +446,8 @@ model GmailConnection {
   expiresAt             DateTime?
   isActive              Boolean  @default(true)
   lastError             String?
+  lastImportError       String?
+  lastDraftError        String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)

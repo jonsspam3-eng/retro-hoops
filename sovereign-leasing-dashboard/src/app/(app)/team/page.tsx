@@ -1,9 +1,17 @@
 import { createTeamMemberAction } from "@/lib/actions";
+import { requireAppUser } from "@/lib/auth";
+import { adminRoles, hasRole } from "@/lib/security";
 import { listTeamMembers } from "@/lib/repository";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamPage() {
+  const user = await requireAppUser();
+  if (!hasRole(user.role, adminRoles)) {
+    redirect("/dashboard");
+  }
+
   const team = await listTeamMembers();
 
   return (
@@ -11,7 +19,7 @@ export default async function TeamPage() {
       <div className="card">
         <h2 className="text-xl font-semibold">Team Roles & Permissions</h2>
         <p className="mt-1 text-sm text-[#6d6f78]">
-          Admin, Agent, Assistant, and Read-only role model for leasing workflow controls.
+          Super Admin, Admin, Manager, Agent, Assistant, and Read-only role model for leasing workflow controls.
         </p>
       </div>
 
@@ -44,8 +52,11 @@ export default async function TeamPage() {
           <input name="name" placeholder="Full name" required />
           <input name="email" type="email" placeholder="Email" required />
           <select name="role" defaultValue="AGENT">
+            <option value="SUPER_ADMIN">Super Admin</option>
             <option value="ADMIN">Admin</option>
+            <option value="MANAGER">Manager</option>
             <option value="AGENT">Agent</option>
+            <option value="MARKETING_ASSISTANT">Marketing/Admin Assistant</option>
             <option value="ASSISTANT">Marketing/Admin Assistant</option>
             <option value="READ_ONLY">Read-only</option>
           </select>

@@ -27,6 +27,7 @@ import {
 } from "@/lib/gmail";
 import { generateAiReplyDraft } from "@/lib/ai";
 import { calculateNextFollowUpAt, determineFollowUpStage } from "@/lib/follow-up";
+import { adminRoles, debugToolsEnabled, gmailImportRoles, gmailSettingsRoles, hasRole } from "@/lib/security";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -56,8 +57,20 @@ function assertEditor(role?: string) {
 }
 
 function assertAdmin(role?: string) {
-  if (role !== "ADMIN") {
+  if (!hasRole(role, adminRoles)) {
     throw new Error("Only admins can perform this action");
+  }
+}
+
+function assertGmailOperator(role?: string) {
+  if (!hasRole(role, gmailImportRoles)) {
+    throw new Error("Your role does not have Gmail import permissions.");
+  }
+}
+
+function assertGmailSettings(role?: string) {
+  if (!hasRole(role, gmailSettingsRoles)) {
+    throw new Error("Only Admin and Super Admin users can manage Gmail settings.");
   }
 }
 
@@ -199,13 +212,17 @@ export async function createTeamMemberAction(formData: FormData) {
   const session = await getAppSession();
   const actor = requireSessionUser(session);
   assertAdmin(actor.role);
+  const role = requiredString(formData.get("role"), "Role") as never;
+  if (role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") {
+    throw new Error("Only a Super Admin can create another Super Admin.");
+  }
 
   const password = requiredString(formData.get("password"), "Password");
   const passwordHash = await hash(password, 10);
   const member = await createTeamMember({
     name: requiredString(formData.get("name"), "Name"),
     email: requiredString(formData.get("email"), "Email"),
-    role: requiredString(formData.get("role"), "Role") as never,
+    role,
     passwordHash,
   });
 
@@ -352,7 +369,7 @@ export async function evaluateLeadAction(formData: FormData) {
 export async function importGmailMessagesAction(formData: FormData) {
   const session = await getAppSession();
   const user = requireSessionUser(session);
-  assertEditor(user.role);
+  assertGmailOperator(user.role);
 
   const messageIds = formData
     .getAll("messageIds")
@@ -374,7 +391,7 @@ export async function importGmailMessagesAction(formData: FormData) {
 export async function quickImportAndOpenLeadAction(formData: FormData) {
   const session = await getAppSession();
   const user = requireSessionUser(session);
-  assertEditor(user.role);
+  assertGmailOperator(user.role);
 
   const messageId = requiredString(formData.get("messageId"), "Message ID");
   const outcomes = await importSelectedGmailMessages({
@@ -398,7 +415,7 @@ export async function quickImportAndOpenLeadAction(formData: FormData) {
 export async function createGmailDraftForLeadAction(formData: FormData) {
   const session = await getAppSession();
   const user = requireSessionUser(session);
-  assertEditor(user.role);
+  assertGmailOperator(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   await createGmailDraftFromLead({
@@ -474,7 +491,7 @@ export async function generateFollowUpDraftAction(formData: FormData) {
 export async function createGmailFollowUpDraftAction(formData: FormData) {
   const session = await getAppSession();
   const user = requireSessionUser(session);
-  assertEditor(user.role);
+  assertGmailOperator(user.role);
 
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const templateId = String(formData.get("templateId") ?? "").trim() || undefined;
@@ -878,8 +895,14 @@ export async function draftApplicationInstructionsAction(formData: FormData) {
 export async function disconnectGmailAction() {
   const session = await getAppSession();
   const user = requireSessionUser(session);
-  assertAdmin(user.role);
+  assertGmailSettings(user.role);
   await disconnectGmailConnection(user.id);
+  await writeAuditLog({
+    actorId: user.id,
+    action: "GMAIL_DISCONNECTED",
+    entityType: "GMAIL_CONNECTION",
+    entityId: user.id,
+  });
   revalidatePath("/gmail-import");
   revalidatePath("/admin/gmail-debug");
   redirect("/admin/gmail-debug?debug_message=Disconnected+Gmail+connection");
@@ -888,13 +911,23 @@ export async function disconnectGmailAction() {
 export async function runGmailDebugActionForm(formData: FormData) {
   const session = await getAppSession();
   const user = requireSessionUser(session);
-  assertAdmin(user.role);
+  assertGmailSettings(user.role);
+  if (process.env.NODE_ENV === "production" && !debugToolsEnabled()) {
+    throw new Error("Debug tools are disabled in production.");
+  }
   const action = requiredString(formData.get("action"), "Debug action") as Parameters<
     typeof runGmailDebugAction
   >[0]["action"];
   const result = await runGmailDebugAction({
     userId: user.id,
     action,
+  });
+  await writeAuditLog({
+    actorId: user.id,
+    action: "GMAIL_DEBUG_ACTION_RUN",
+    entityType: "GMAIL_DEBUG",
+    entityId: action,
+    metadata: { ok: result.ok, message: result.message },
   });
   revalidatePath("/admin/gmail-debug");
   redirect(

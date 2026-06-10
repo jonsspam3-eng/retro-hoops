@@ -11,6 +11,7 @@ import {
 import { getAppSession } from "@/lib/auth";
 import { detectPauseReason, groupPipelineLeads } from "@/lib/follow-up";
 import { listFollowUpSequences, listListings, listPipelineLeads, listTeamMembers, listTemplates } from "@/lib/repository";
+import { adminRoles, hasRole } from "@/lib/security";
 import { followUpStages, inquirySources, leadStatuses, showingStatuses, type PipelineFilters } from "@/lib/types";
 import Link from "next/link";
 
@@ -33,7 +34,7 @@ export default async function PipelinePage({
 }) {
   const params = (await searchParams) ?? {};
   const session = await getAppSession();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const isAdmin = hasRole(session?.user?.role, adminRoles);
 
   const filters: PipelineFilters = {
     agentId: mapFilterValue(params.agentId),
@@ -212,7 +213,7 @@ export default async function PipelinePage({
 
       {isAdmin ? (
         <section className="card">
-          <h3 className="text-lg font-semibold">Follow-Up Sequences (Admin)</h3>
+          <h3 className="text-lg font-semibold">Follow-Up Sequences (Admin / Super Admin)</h3>
           <p className="mt-1 text-sm text-[#6d6f78]">
             Edit timing, template mapping, status, and listing/source targeting for follow-up automation.
           </p>

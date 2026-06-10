@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { signOut } from "next-auth/react";
 
 type Item = {
   href: string;
@@ -24,7 +25,7 @@ const navItems: Item[] = [
 
 export function ShellNav({ userName, role, children }: { userName: string; role: string; children: ReactNode }) {
   const currentPath = usePathname();
-  const visibleItems = role === "ADMIN"
+  const visibleItems = ["SUPER_ADMIN", "ADMIN"].includes(role)
     ? [
         ...navItems.slice(0, 3),
         { href: "/admin/gmail-debug", label: "Gmail Debug", description: "Connection diagnostics" },
@@ -65,6 +66,13 @@ export function ShellNav({ userName, role, children }: { userName: string; role:
               AI qualification is advisory only. Human review is required before decisions and communications that affect housing outcomes.
             </p>
           </div>
+          <button
+            type="button"
+            className="mt-3 w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-left text-sm hover:bg-white/20"
+            onClick={() => signOut({ callbackUrl: "/login" })}
+          >
+            Secure logout
+          </button>
         </aside>
 
         <main className="space-y-4">{children}</main>

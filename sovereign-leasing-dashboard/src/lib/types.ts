@@ -1,4 +1,11 @@
-export type UserRole = "ADMIN" | "AGENT" | "ASSISTANT" | "READ_ONLY";
+export type UserRole =
+  | "SUPER_ADMIN"
+  | "ADMIN"
+  | "MANAGER"
+  | "AGENT"
+  | "MARKETING_ASSISTANT"
+  | "ASSISTANT"
+  | "READ_ONLY";
 
 export type LeadStatus =
   | "NEW"
@@ -70,10 +77,16 @@ export interface TeamUser {
   id: string;
   name: string;
   email: string;
+  googleSub?: string | null;
   phone?: string | null;
   role: UserRole;
   passwordHash: string;
   isActive: boolean;
+  failedLoginAttempts?: number;
+  lockedUntil?: string | null;
+  lastLoginAt?: string | null;
+  lastLoginProvider?: string | null;
+  requireGoogleMfa?: boolean;
 }
 
 export interface ListingRecord {
@@ -251,6 +264,8 @@ export interface GmailConnectionRecord {
   accessTokenExists?: boolean;
   refreshTokenExists?: boolean;
   lastError?: string | null;
+  lastImportError?: string | null;
+  lastDraftError?: string | null;
 }
 
 export interface GmailInquiryMessage {
@@ -370,4 +385,14 @@ export const gmailSourceFilters: GmailInquirySourceFilter[] = [
   "WEBSITE",
   "DIRECT_EMAIL",
   "UNKNOWN",
+];
+
+export const roleHierarchy: UserRole[] = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "MANAGER",
+  "AGENT",
+  "MARKETING_ASSISTANT",
+  "ASSISTANT",
+  "READ_ONLY",
 ];

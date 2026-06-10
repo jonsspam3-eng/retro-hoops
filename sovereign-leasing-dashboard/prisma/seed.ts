@@ -4,8 +4,11 @@ import { hash } from "bcryptjs";
 const prisma = new PrismaClient();
 
 const UserRole = {
+  SUPER_ADMIN: "SUPER_ADMIN",
   ADMIN: "ADMIN",
+  MANAGER: "MANAGER",
   AGENT: "AGENT",
+  MARKETING_ASSISTANT: "MARKETING_ASSISTANT",
   ASSISTANT: "ASSISTANT",
   READ_ONLY: "READ_ONLY",
 } as const;
@@ -31,7 +34,6 @@ const QualificationStatus = {
 
 const EmailMode = {
   DRAFT_REVIEW: "DRAFT_REVIEW",
-  AUTO_SEND: "AUTO_SEND",
 } as const;
 
 async function main() {
@@ -59,15 +61,16 @@ async function main() {
       data: {
         name: "Ariana Chen",
         email: "Admin@srealty.nyc",
-        role: UserRole.ADMIN,
+        role: UserRole.SUPER_ADMIN,
         phone: "212-555-1100",
         passwordHash,
+        requireGoogleMfa: true,
       },
     }),
     prisma.user.create({
       data: {
         name: "Marcus Bell",
-        email: "mbell@sovereignnyc.com",
+        email: "mbell@srealty.nyc",
         role: UserRole.AGENT,
         phone: "212-555-2200",
         passwordHash,
@@ -76,8 +79,8 @@ async function main() {
     prisma.user.create({
       data: {
         name: "Sofia Ruiz",
-        email: "ops@sovereignnyc.com",
-        role: UserRole.ASSISTANT,
+        email: "ops@srealty.nyc",
+        role: UserRole.MARKETING_ASSISTANT,
         phone: "212-555-3300",
         passwordHash,
       },
@@ -85,7 +88,7 @@ async function main() {
     prisma.user.create({
       data: {
         name: "Reporting Viewer",
-        email: "viewer@sovereignnyc.com",
+        email: "viewer@srealty.nyc",
         role: UserRole.READ_ONLY,
         passwordHash,
       },
@@ -261,7 +264,7 @@ async function main() {
       {
         name: "Follow-Up 24h",
         category: "FOLLOW_UP",
-        mode: EmailMode.AUTO_SEND,
+        mode: EmailMode.DRAFT_REVIEW,
         subject: "Quick follow-up on {{listing_address}}",
         body:
           "Hi {{client_name}},\n\nFollowing up on your inquiry. If still interested, share your qualification details and preferred showing windows.\n\nBest,\n{{agent_name}}",
@@ -296,14 +299,14 @@ async function main() {
             bodyText:
               "Hi, I am interested in 101 Warren St 2A. Looking to move by July 1st. We are 2 working professionals with one cat.",
             senderEmail: "jordan.smith@email.com",
-            recipientEmail: "leasing@sovereignnyc.com",
+            recipientEmail: "leasing@srealty.nyc",
           },
           {
             direction: "OUTBOUND",
             subject: "Re: Inquiry for 101 Warren St 2A",
             bodyText:
               "Thanks Jordan. Can you share annual household income and preferred showing windows this week?",
-            senderEmail: "mbell@sovereignnyc.com",
+            senderEmail: "mbell@srealty.nyc",
             recipientEmail: "jordan.smith@email.com",
           },
         ],

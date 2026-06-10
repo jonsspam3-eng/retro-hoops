@@ -1,6 +1,7 @@
 import { importGmailMessagesAction, quickImportAndOpenLeadAction } from "@/lib/actions";
 import { requireAppUser } from "@/lib/auth";
 import { buildGmailQuery, fetchGmailInquiryMessages, getRequiredGoogleRedirectUri } from "@/lib/gmail";
+import { gmailImportRoles, gmailSettingsRoles, hasRole } from "@/lib/security";
 import { gmailSourceFilters } from "@/lib/types";
 import { StatusPill } from "@/components/status-pill";
 
@@ -25,6 +26,8 @@ export default async function GmailImportPage({
     | "DIRECT_EMAIL"
     | "UNKNOWN") ?? "ALL";
   const user = await requireAppUser();
+  const canManageGmailSettings = hasRole(user.role, gmailSettingsRoles);
+  const canImportGmail = hasRole(user.role, gmailImportRoles);
   const { mode, connectionState, messages } = await fetchGmailInquiryMessages({
     userId: user.id,
     sourceFilter,
@@ -71,21 +74,21 @@ export default async function GmailImportPage({
           <div className="rounded-xl border border-[#ece8e3] bg-[#fdfaf6] p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-[#6d6f78]">Step 3</p>
             <p className="mt-1 text-sm font-medium">Create Gmail draft</p>
-            <p className="mt-1 text-xs text-[#6d6f78]">AI-assisted draft always requires human review</p>
+            <p className="mt-1 text-xs text-[#6d6f78]">Draft Created — Human Review Required · No emails are sent automatically</p>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {user.role === "ADMIN" ? (
+          {canManageGmailSettings ? (
             <a
               href="/api/gmail/connect"
               className="inline-flex rounded-lg bg-[#050b23] px-3 py-2 text-sm text-white hover:bg-[#111f4a]"
             >
-              Connect Gmail (Admin)
+              Connect Gmail Inbox
             </a>
           ) : (
             <span className="rounded-lg border border-[#d9d4cc] bg-[#f8f6f3] px-3 py-2 text-xs text-[#6d6f78]">
-              Ask an admin to connect Gmail.
+              Ask an Admin/Super Admin to connect Gmail.
             </span>
           )}
 
@@ -93,7 +96,7 @@ export default async function GmailImportPage({
             Refresh inbox
           </a>
 
-          {firstImportable ? (
+          {firstImportable && canImportGmail ? (
             <form action={quickImportAndOpenLeadAction}>
               <input type="hidden" name="messageId" value={firstImportable.id} />
               <button type="submit">Import first inquiry & open lead</button>
@@ -114,7 +117,7 @@ export default async function GmailImportPage({
           {connectionState.connection?.lastError ? (
             <p className="mt-1 text-xs text-rose-700">Last Gmail error: {connectionState.connection.lastError}</p>
           ) : null}
-          {user.role === "ADMIN" ? (
+          {canManageGmailSettings ? (
             <p className="mt-1 text-xs">
               <a href="/admin/gmail-debug" className="text-[#0f2d93] hover:underline">
                 Open admin Gmail debug panel
@@ -142,7 +145,7 @@ export default async function GmailImportPage({
           <p className="text-sm text-[#6d6f78]">
             Select inquiries and run bulk import. Duplicate message/thread imports are blocked automatically.
           </p>
-          <button type="submit">Bulk import selected</button>
+          <button type="submit" disabled={!canImportGmail}>Bulk import selected</button>
         </div>
 
         <table className="min-w-full text-sm">
@@ -208,13 +211,15 @@ export default async function GmailImportPage({
                 </td>
                 <td className="py-2">
                   <div className="flex flex-col gap-1">
-                    <a
-                      href={`/admin/gmail-debug?messageId=${encodeURIComponent(message.id)}`}
-                      className="text-xs text-[#0f2d93] hover:underline"
-                    >
-                      View raw message
-                    </a>
-                    {!message.importedLeadId ? (
+                    {canManageGmailSettings ? (
+                      <a
+                        href={`/admin/gmail-debug?messageId=${encodeURIComponent(message.id)}`}
+                        className="text-xs text-[#0f2d93] hover:underline"
+                      >
+                        View raw message
+                      </a>
+                    ) : null}
+                    {!message.importedLeadId && canImportGmail ? (
                       <a
                         href={`/api/gmail/import?messageId=${encodeURIComponent(message.id)}`}
                         className="text-left text-xs text-[#0f2d93] hover:underline"

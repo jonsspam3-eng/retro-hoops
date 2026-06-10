@@ -1,13 +1,11 @@
 import { getAppSession } from "@/lib/auth";
 import { importSelectedGmailMessages } from "@/lib/gmail";
+import { gmailImportRoles, hasRole } from "@/lib/security";
 import { NextResponse } from "next/server";
 
-function assertEditor(role?: string) {
-  if (!role) {
-    throw new Error("You must be signed in to import Gmail messages.");
-  }
-  if (role === "READ_ONLY") {
-    throw new Error("Read-only users cannot import Gmail messages.");
+function assertGmailImportRole(role?: string) {
+  if (!hasRole(role, gmailImportRoles)) {
+    throw new Error("Your role does not have Gmail import permissions.");
   }
 }
 
@@ -19,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    assertEditor(session.user.role);
+    assertGmailImportRole(session.user.role);
     const url = new URL(request.url);
     const messageId = url.searchParams.get("messageId");
     if (!messageId) {

@@ -38,22 +38,40 @@ function withEnvReset(keys: string[], fn: () => Promise<void> | void) {
 
 test("validates required OAuth env variables", async () => {
   await withEnvReset(
-    ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI", "DATABASE_URL", "NEXTAUTH_URL", "APP_URL"],
+    [
+      "GOOGLE_GMAIL_CLIENT_ID",
+      "GOOGLE_GMAIL_CLIENT_SECRET",
+      "GOOGLE_GMAIL_REDIRECT_URI",
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+      "GOOGLE_REDIRECT_URI",
+      "DATABASE_URL",
+      "NEXTAUTH_URL",
+      "APP_URL",
+      "ENCRYPTION_KEY",
+      "GMAIL_TOKEN_ENCRYPTION_KEY",
+    ],
     () => {
+      delete process.env.GOOGLE_GMAIL_CLIENT_ID;
+      delete process.env.GOOGLE_GMAIL_CLIENT_SECRET;
+      delete process.env.GOOGLE_GMAIL_REDIRECT_URI;
       delete process.env.GOOGLE_CLIENT_ID;
       delete process.env.GOOGLE_CLIENT_SECRET;
       delete process.env.GOOGLE_REDIRECT_URI;
       delete process.env.DATABASE_URL;
       delete process.env.NEXTAUTH_URL;
       delete process.env.APP_URL;
+      delete process.env.ENCRYPTION_KEY;
+      delete process.env.GMAIL_TOKEN_ENCRYPTION_KEY;
 
       const config = validateOAuthConfig();
       assert.equal(config.configured, false);
-      assert.ok(config.missing.includes("GOOGLE_CLIENT_ID"));
-      assert.ok(config.missing.includes("GOOGLE_CLIENT_SECRET"));
-      assert.ok(config.missing.includes("GOOGLE_REDIRECT_URI"));
+      assert.ok(config.missing.includes("GOOGLE_GMAIL_CLIENT_ID"));
+      assert.ok(config.missing.includes("GOOGLE_GMAIL_CLIENT_SECRET"));
+      assert.ok(config.missing.includes("GOOGLE_GMAIL_REDIRECT_URI"));
       assert.ok(config.missing.includes("DATABASE_URL"));
       assert.ok(config.missing.includes("NEXTAUTH_URL or APP_URL"));
+      assert.ok(config.missing.includes("ENCRYPTION_KEY"));
     },
   );
 });
@@ -114,11 +132,11 @@ test("stores raw email metadata when importing Gmail message", async () => {
 
 test("returns mock provider when Google env vars are missing", async () => {
   await withEnvReset(
-    ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
+    ["GOOGLE_GMAIL_CLIENT_ID", "GOOGLE_GMAIL_CLIENT_SECRET", "GOOGLE_GMAIL_REDIRECT_URI"],
     async () => {
-      delete process.env.GOOGLE_CLIENT_ID;
-      delete process.env.GOOGLE_CLIENT_SECRET;
-      delete process.env.GOOGLE_REDIRECT_URI;
+      delete process.env.GOOGLE_GMAIL_CLIENT_ID;
+      delete process.env.GOOGLE_GMAIL_CLIENT_SECRET;
+      delete process.env.GOOGLE_GMAIL_REDIRECT_URI;
       const provider = await resolveGmailProvider("user_admin");
       assert.equal(provider, mockGmailProvider);
     },
