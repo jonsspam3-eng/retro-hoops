@@ -1,6 +1,10 @@
 import { getFallbackStore, makeId } from "@/lib/fallback-store";
 import { prisma } from "@/lib/prisma";
 
+function hasDatabaseUrlConfigured(): boolean {
+  return Boolean((process.env.DATABASE_URL ?? "").trim());
+}
+
 export async function writeAuditLog(input: {
   actorId?: string | null;
   leadId?: string | null;
@@ -9,7 +13,7 @@ export async function writeAuditLog(input: {
   entityId: string;
   metadata?: Record<string, unknown>;
 }) {
-  if (!process.env.DATABASE_URL) {
+  if (!hasDatabaseUrlConfigured()) {
     const store = getFallbackStore();
     store.auditLogs.push({
       id: makeId("audit"),

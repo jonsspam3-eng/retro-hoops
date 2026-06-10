@@ -22,6 +22,10 @@ function appUrl() {
   return process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 }
 
+function hasDatabaseUrlConfigured() {
+  return Boolean((process.env.DATABASE_URL ?? "").trim());
+}
+
 function googleProviderConfigured() {
   return Boolean(process.env.GOOGLE_AUTH_CLIENT_ID && process.env.GOOGLE_AUTH_CLIENT_SECRET);
 }
@@ -52,7 +56,8 @@ async function writeSecurityAudit(input: {
 
 async function getUserByEmail(email: string): Promise<TeamUser | null> {
   const normalized = email.trim().toLowerCase();
-  if (!process.env.DATABASE_URL) {
+  const hasDatabaseUrl = hasDatabaseUrlConfigured();
+  if (!hasDatabaseUrl) {
     return getFallbackStore().users.find((user) => user.email.toLowerCase() === normalized) ?? null;
   }
 
@@ -99,7 +104,8 @@ async function updateUserSecurityFields(
     >
   >,
 ) {
-  if (!process.env.DATABASE_URL) {
+  const hasDatabaseUrl = hasDatabaseUrlConfigured();
+  if (!hasDatabaseUrl) {
     const user = getFallbackStore().users.find((item) => item.id === userId);
     if (!user) return;
     Object.assign(user, updates);
@@ -199,7 +205,7 @@ async function resolveGoogleUser(input: {
   return { user };
 }
 
-const providers = [
+const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
     name: "Sovereign Credentials",
     credentials: {

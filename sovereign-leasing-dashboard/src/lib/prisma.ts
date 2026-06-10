@@ -6,7 +6,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function buildPrismaClient(): PrismaClient | undefined {
-  const url = process.env.DATABASE_URL;
+  const url = (process.env.DATABASE_URL ?? "").trim();
   if (!url) {
     return undefined;
   }
