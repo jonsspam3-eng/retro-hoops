@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8f6f3;
+  --foreground: #050b23;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, sans-serif;
+}
+
+input,
+select,
+textarea {
+  @apply w-full rounded-lg border border-[#d8d4ce] bg-white px-3 py-2 text-sm text-[#050b23] outline-none ring-[#050b23]/30 transition focus:ring-2;
+}
+
+button {
+  @apply rounded-lg bg-[#050b23] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#111f4a] disabled:opacity-50;
+}
+
+.card {
+  @apply rounded-2xl border border-[#e7dfd7] bg-white p-4 shadow-sm;
+}

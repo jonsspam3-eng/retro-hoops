@@ -1,0 +1,457 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  AGENT
+  MARKETING_ASSISTANT
+  ASSISTANT
+  READ_ONLY
+}
+
+enum InquirySource {
+  STREETEASY
+  ZILLOW
+  REALTYMX
+  WEBSITE
+  DIRECT_EMAIL
+  UNKNOWN
+  EMAIL
+  MANUAL
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  IMPORTED
+  NEEDS_REVIEW
+  DRAFT_CREATED
+  REPLIED
+  FOLLOW_UP_NEEDED
+  NEEDS_REPLY
+  NEEDS_MORE_INFO
+  POSSIBLY_QUALIFIED
+  QUALIFIED
+  NOT_QUALIFIED
+  FOLLOW_UP
+  SHOWING_REQUESTED
+  APPLICATION_REQUESTED
+  ARCHIVED
+}
+
+enum ListingStatus {
+  ACTIVE
+  PENDING
+  RENTED
+  INACTIVE
+}
+
+enum QualificationStatus {
+  QUALIFIED
+  POSSIBLY_QUALIFIED
+  NEEDS_MORE_INFO
+  NOT_QUALIFIED
+}
+
+enum EmailMode {
+  AUTO_SEND
+  DRAFT_REVIEW
+  MANUAL_ONLY
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum ThreadProvider {
+  GMAIL
+  MANUAL
+}
+
+enum FollowUpState {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum FollowUpStage {
+  INITIAL_REPLY
+  FOLLOW_UP_1
+  FOLLOW_UP_2
+  FINAL_FOLLOW_UP
+  STALE_RECOMMENDED
+  ARCHIVED
+}
+
+enum ShowingStatus {
+  NOT_REQUESTED
+  SHOWING_REQUESTED
+  TIMES_OFFERED
+  SHOWING_CONFIRMED
+  SHOWING_COMPLETED
+  NO_SHOW
+  RESCHEDULE_NEEDED
+  APPLICATION_REQUESTED
+  ARCHIVED
+}
+
+enum AiRecommendationType {
+  SUMMARY
+  REPLY_DRAFT
+  MISSING_INFO
+  MOVE_FORWARD_RECOMMENDATION
+  RISK_FLAG
+}
+
+model User {
+  id              String              @id @default(cuid())
+  name            String
+  email           String              @unique
+  googleSub       String?             @unique
+  phone           String?
+  role            UserRole
+  passwordHash    String
+  isActive        Boolean             @default(true)
+  failedLoginAttempts Int             @default(0)
+  lockedUntil     DateTime?
+  lastLoginAt     DateTime?
+  lastLoginProvider String?
+  requireGoogleMfa Boolean            @default(false)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  assignedLeads   Lead[]              @relation("LeadAssignedAgent")
+  managedListing  Listing[]           @relation("ListingAssignedAgent")
+  rulesCreated    QualificationRule[] @relation("RuleCreatedBy")
+  notes           LeadNote[]
+  auditLogs       AuditLog[]
+  gmailConnection GmailConnection[]
+
+  @@index([role, isActive])
+}
+
+model Listing {
+  id                    String                @id @default(cuid())
+  address               String
+  apartmentNumber       String
+  rent                  Int
+  beds                  Int
+  baths                 Float
+  neighborhood          String
+  availabilityDate      DateTime?
+  agentId               String?
+  showingInstructions   String?
+  petPolicy             String?
+  incomeRequirementX    Int                   @default(40)
+  guarantorRequirementX Int                   @default(80)
+  brokerFeeStatus       String?
+  platformLinks         Json?
+  status                ListingStatus         @default(ACTIVE)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  agent                 User?                 @relation("ListingAssignedAgent", fields: [agentId], references: [id])
+  leads                 Lead[]
+  qualifications        LeadQualification[]
+  showings              ShowingAppointment[]
+  templates             EmailTemplate[]
+  rules                 QualificationRule[]
+  checklists            ApplicationChecklist[]
+  followUpSequences     FollowUpSequence[]
+
+  @@index([address, apartmentNumber])
+  @@index([status])
+}
+
+model Lead {
+  id                    String              @id @default(cuid())
+  clientName            String
+  email                 String
+  phone                 String?
+  originalSender        String?
+  inquirySubject        String?
+  listingId             String?
+  source                InquirySource       @default(EMAIL)
+  inquiryMessage        String
+  desiredMoveInDate     DateTime?
+  budget                Int?
+  pets                  String?
+  occupants             Int?
+  annualIncome          Int?
+  employmentDetails     String?
+  needsGuarantor        Boolean?
+  voucherProgram        String?
+  creditReadiness       String?
+  showingAvailability   String?
+  gmailMessageId        String?             @unique
+  gmailThreadId         String?
+  gmailImportedAt       DateTime?
+  sourceDetectionResult String?
+  sourceDetectionConfidence Float?
+  listingMatchConfidence Float?
+  listingMatchReason    String?
+  missingFields         Json?
+  lastAiDraft           String?
+  lastAiDraftGeneratedAt DateTime?
+  responsivenessScore   Int                 @default(0)
+  completenessScore     Int                 @default(0)
+  status                LeadStatus          @default(NEW)
+  score                 Int?
+  qualificationReason   String?
+  parsedFields          Json?
+  recommendedNextAction String?
+  assignedAgentId       String?
+  showingAgentId        String?
+  followUpDate          DateTime?
+  lastContactedAt       DateTime?
+  lastClientReplyAt     DateTime?
+  nextFollowUpAt        DateTime?
+  followUpStage         FollowUpStage       @default(INITIAL_REPLY)
+  followUpPaused        Boolean             @default(false)
+  followUpPauseReason   String?
+  followUpSequenceId    String?
+  followUpAttemptCount  Int                 @default(0)
+  showingStatus         ShowingStatus       @default(NOT_REQUESTED)
+  requestedShowingTimes Json?
+  offeredShowingTimes   Json?
+  confirmedShowingAt    DateTime?
+  showingLocation       String?
+  accessInstructions    String?
+  showingNotes          String?
+  showedAt              DateTime?
+  noShowReason          String?
+  postShowingNotes      String?
+  applicationInstructionsDraftedAt DateTime?
+  lastResponseAt        DateTime?
+  receivedAt            DateTime            @default(now())
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  listing               Listing?            @relation(fields: [listingId], references: [id])
+  assignedAgent         User?               @relation("LeadAssignedAgent", fields: [assignedAgentId], references: [id])
+  qualifications        LeadQualification[]
+  thread                EmailThread?
+  notes                 LeadNote[]
+  followUps             LeadFollowUp[]
+  showings              ShowingAppointment[]
+  aiRecommendations     AiRecommendation[]
+  auditLogs             AuditLog[]
+
+  @@index([status])
+  @@index([source])
+  @@index([assignedAgentId])
+  @@index([showingAgentId])
+  @@index([nextFollowUpAt])
+  @@index([gmailThreadId])
+  @@unique([gmailThreadId, email])
+}
+
+model LeadQualification {
+  id          String              @id @default(cuid())
+  leadId      String
+  listingId   String?
+  status      QualificationStatus
+  score       Int
+  notes       String
+  reasons     Json
+  snapshot    Json?
+  evaluatedAt DateTime            @default(now())
+  lead        Lead                @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  listing     Listing?            @relation(fields: [listingId], references: [id], onDelete: SetNull)
+}
+
+model QualificationRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  isActive    Boolean  @default(true)
+  listingId   String?
+  createdById String?
+  criteria    Json
+  weight      Int      @default(10)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  listing     Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  createdBy   User?    @relation("RuleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+}
+
+model EmailTemplate {
+  id            String       @id @default(cuid())
+  name          String
+  category      String
+  mode          EmailMode    @default(DRAFT_REVIEW)
+  listingId     String?
+  leadStatus    LeadStatus?
+  subject       String
+  body          String
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  listing       Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  followUpSteps FollowUpStep[]
+}
+
+model EmailThread {
+  id               String         @id @default(cuid())
+  leadId           String         @unique
+  provider         ThreadProvider @default(MANUAL)
+  externalThreadId String?
+  subject          String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  lead             Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  messages         EmailMessage[]
+}
+
+model EmailMessage {
+  id             String           @id @default(cuid())
+  threadId       String
+  direction      MessageDirection
+  subject        String
+  bodyText       String
+  senderEmail    String
+  recipientEmail String
+  gmailMessageId String?
+  gmailThreadId  String?
+  sentAt         DateTime         @default(now())
+  status         String           @default("SENT")
+  thread         EmailThread      @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([sentAt])
+  @@index([gmailMessageId])
+}
+
+model FollowUpSequence {
+  id         String        @id @default(cuid())
+  name       String
+  listingId  String?
+  source     InquirySource?
+  leadStatus LeadStatus?
+  state      FollowUpState @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  listing    Listing?      @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  steps      FollowUpStep[]
+}
+
+model FollowUpStep {
+  id              String           @id @default(cuid())
+  sequenceId      String
+  stepOrder       Int
+  delayHours      Int
+  templateId      String?
+  fallbackSubject String?
+  fallbackBody    String?
+  sequence        FollowUpSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  template        EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+}
+
+model LeadFollowUp {
+  id           String   @id @default(cuid())
+  leadId       String
+  sequenceId   String
+  stepOrder    Int
+  scheduledFor DateTime
+  sentAt       DateTime?
+  status       String   @default("SCHEDULED")
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledFor])
+}
+
+model ShowingAppointment {
+  id                 String        @id @default(cuid())
+  leadId             String
+  listingId          String?
+  preferredWindows   Json?
+  confirmedAt        DateTime?
+  startsAt           DateTime?
+  endsAt             DateTime?
+  status             ShowingStatus @default(SHOWING_REQUESTED)
+  accessInstructions String?
+  requiredDocuments  Json?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  lead               Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  listing            Listing?      @relation(fields: [listingId], references: [id], onDelete: SetNull)
+}
+
+model ApplicationChecklist {
+  id          String   @id @default(cuid())
+  listingId   String?
+  buildingTag String?
+  name        String
+  items       Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  listing     Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  authorId  String?
+  content   String
+  createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+}
+
+model AiRecommendation {
+  id         String               @id @default(cuid())
+  leadId     String
+  type       AiRecommendationType
+  modelName  String
+  content    String
+  rationale  String?
+  confidence Float?
+  createdAt  DateTime             @default(now())
+  lead       Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([type, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  leadId     String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  lead       Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+model GmailConnection {
+  id                    String   @id @default(cuid())
+  userId                String
+  provider              String   @default("GOOGLE")
+  email                 String?
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  scope                 String?
+  tokenType             String?
+  expiresAt             DateTime?
+  isActive              Boolean  @default(true)
+  lastError             String?
+  lastImportError       String?
+  lastDraftError        String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([isActive])
+}
