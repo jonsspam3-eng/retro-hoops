@@ -6,12 +6,11 @@ import { requireAppUser } from "@/lib/auth";
 import { getGmailDebugSnapshot, getGmailMessageDetail } from "@/lib/gmail";
 import { debugToolsEnabled, gmailSettingsRoles, hasRole } from "@/lib/security";
 import { redirect } from "next/navigation";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-function formatIso(value: string) {
-  return value.replace("T", " ").slice(0, 16);
-}
+const formatIso = formatDateTime;
 
 export default async function GmailDebugPage({
   searchParams,

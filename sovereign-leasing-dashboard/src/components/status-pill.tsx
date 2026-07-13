@@ -34,7 +34,13 @@ const colorMap: Record<string, string> = {
 
 export function StatusPill({ label }: Props) {
   return (
-    <span className={clsx("rounded-full px-2.5 py-1 text-xs font-semibold", colorMap[label] ?? "bg-zinc-100 text-zinc-700")}>
+    <span
+      className={clsx(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ring-current/15",
+        colorMap[label] ?? "bg-zinc-100 text-zinc-700",
+      )}
+    >
+      <span className="size-1.5 rounded-full bg-current opacity-60" aria-hidden />
       {label.replaceAll("_", " ")}
     </span>
   );

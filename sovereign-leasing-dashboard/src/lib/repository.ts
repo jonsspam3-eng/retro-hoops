@@ -1,5 +1,6 @@
 import { getFallbackStore, makeId } from "@/lib/fallback-store";
 import { evaluateLeadQualification, qualificationStatusToLeadStatus } from "@/lib/rules-engine";
+import { createLeadStatusSummary } from "@/lib/seed-data";
 import { prisma } from "@/lib/prisma";
 import type {
   AuditLogRecord,
@@ -296,6 +297,9 @@ export async function listLeads(filters?: {
   assignedAgentId?: string;
   followUpStage?: FollowUpStage;
   showingStatus?: ShowingWorkflowStatus;
+  nextFollowUpFrom?: Date;
+  nextFollowUpBefore?: Date;
+  take?: number;
 }): Promise<LeadRecord[]> {
   return runWithFallback(
     async () => {
@@ -307,21 +311,145 @@ export async function listLeads(filters?: {
           assignedAgentId: filters?.assignedAgentId,
           followUpStage: filters?.followUpStage as never,
           showingStatus: filters?.showingStatus as never,
+          nextFollowUpAt:
+            filters?.nextFollowUpFrom || filters?.nextFollowUpBefore
+              ? { gte: filters.nextFollowUpFrom, lt: filters.nextFollowUpBefore }
+              : undefined,
         },
         orderBy: { receivedAt: "desc" },
+        take: filters?.take,
       });
       return rows.map((row) => mapLead(row));
     },
     () => {
       const store = getFallbackStore();
-      return store.leads
+      const filtered = store.leads
         .filter((lead) => (filters?.status ? lead.status === filters.status : true))
         .filter((lead) => (filters?.source ? lead.source === filters.source : true))
         .filter((lead) => (filters?.listingId ? lead.listingId === filters.listingId : true))
         .filter((lead) => (filters?.assignedAgentId ? lead.assignedAgentId === filters.assignedAgentId : true))
         .filter((lead) => (filters?.followUpStage ? lead.followUpStage === filters.followUpStage : true))
-        .filter((lead) => (filters?.showingStatus ? lead.showingStatus === filters.showingStatus : true));
+        .filter((lead) => (filters?.showingStatus ? lead.showingStatus === filters.showingStatus : true))
+        .filter((lead) => {
+          if (!filters?.nextFollowUpFrom && !filters?.nextFollowUpBefore) return true;
+          const due = toDate(lead.nextFollowUpAt);
+          if (!due) return false;
+          if (filters.nextFollowUpFrom && due < filters.nextFollowUpFrom) return false;
+          if (filters.nextFollowUpBefore && due >= filters.nextFollowUpBefore) return false;
+          return true;
+        });
+      return typeof filters?.take === "number" ? filtered.slice(0, filters.take) : filtered;
     },
+  );
+}
+
+export interface LeadQuery {
+  statuses?: LeadStatus[];
+  source?: string;
+  listingId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface LeadQueryResult {
+  leads: LeadRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+}
+
+export async function queryLeads(query: LeadQuery = {}): Promise<LeadQueryResult> {
+  const page = Math.max(1, query.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+  const statuses = query.statuses?.length ? query.statuses : undefined;
+  const search = query.search?.trim() || undefined;
+
+  return runWithFallback(
+    async () => {
+      const where = {
+        status: statuses ? { in: statuses as never[] } : undefined,
+        source: (query.source || undefined) as never,
+        listingId: query.listingId || undefined,
+        ...(search
+          ? {
+              OR: [
+                { clientName: { contains: search, mode: "insensitive" as const } },
+                { email: { contains: search, mode: "insensitive" as const } },
+                { inquirySubject: { contains: search, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      };
+      const [rows, total] = await Promise.all([
+        prisma.lead.findMany({
+          where: where as never,
+          orderBy: { receivedAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.lead.count({ where: where as never }),
+      ]);
+      return {
+        leads: rows.map((row) => mapLead(row)),
+        total,
+        page,
+        pageSize,
+        pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      };
+    },
+    () => {
+      const store = getFallbackStore();
+      const lowered = search?.toLowerCase();
+      const filtered = store.leads
+        .filter((lead) => (statuses ? statuses.includes(lead.status) : true))
+        .filter((lead) => (query.source ? lead.source === query.source : true))
+        .filter((lead) => (query.listingId ? lead.listingId === query.listingId : true))
+        .filter((lead) =>
+          lowered
+            ? lead.clientName.toLowerCase().includes(lowered) ||
+              lead.email.toLowerCase().includes(lowered) ||
+              (lead.inquirySubject ?? "").toLowerCase().includes(lowered)
+            : true,
+        )
+        .slice()
+        .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+      return {
+        leads: filtered.slice((page - 1) * pageSize, page * pageSize),
+        total: filtered.length,
+        page,
+        pageSize,
+        pageCount: Math.max(1, Math.ceil(filtered.length / pageSize)),
+      };
+    },
+  );
+}
+
+export async function countLeadsByStatus(): Promise<Record<LeadStatus, number>> {
+  return runWithFallback(
+    async () => {
+      const groups = await prisma.lead.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      });
+      const counts = createLeadStatusSummary([]);
+      for (const group of groups) {
+        counts[group.status as LeadStatus] = group._count._all;
+      }
+      return counts;
+    },
+    () => createLeadStatusSummary(getFallbackStore().leads),
+  );
+}
+
+export async function getListingById(id: string): Promise<ListingRecord | null> {
+  return runWithFallback(
+    async () => {
+      const row = await prisma.listing.findUnique({ where: { id } });
+      return row ? mapListing(row) : null;
+    },
+    () => getFallbackStore().listings.find((listing) => listing.id === id) ?? null,
   );
 }
 
@@ -509,16 +637,17 @@ export async function listLeadQualifications(leadId: string): Promise<LeadQualif
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
-  const leads = await listLeads();
+  // Single grouped count query instead of loading every lead row.
+  const counts = await countLeadsByStatus();
 
   return {
-    newInquiries: leads.filter((lead) => lead.status === "NEW" || lead.status === "IMPORTED").length,
-    needsReply: leads.filter((lead) => ["NEEDS_REPLY", "NEEDS_MORE_INFO", "NEEDS_REVIEW"].includes(lead.status)).length,
-    qualifiedLeads: leads.filter((lead) => lead.status === "QUALIFIED").length,
-    followUps: leads.filter((lead) => ["FOLLOW_UP", "FOLLOW_UP_NEEDED"].includes(lead.status)).length,
-    showingRequested: leads.filter((lead) => lead.status === "SHOWING_REQUESTED").length,
-    applicationRequested: leads.filter((lead) => lead.status === "APPLICATION_REQUESTED").length,
-    archived: leads.filter((lead) => ["ARCHIVED", "NOT_QUALIFIED"].includes(lead.status)).length,
+    newInquiries: counts.NEW + counts.IMPORTED,
+    needsReply: counts.NEEDS_REPLY + counts.NEEDS_MORE_INFO + counts.NEEDS_REVIEW,
+    qualifiedLeads: counts.QUALIFIED,
+    followUps: counts.FOLLOW_UP + counts.FOLLOW_UP_NEEDED,
+    showingRequested: counts.SHOWING_REQUESTED,
+    applicationRequested: counts.APPLICATION_REQUESTED,
+    archived: counts.ARCHIVED + counts.NOT_QUALIFIED,
   };
 }
 
@@ -1177,7 +1306,21 @@ export async function upsertFollowUpSequence(input: {
 }
 
 export async function listPipelineLeads(filters?: PipelineFilters): Promise<LeadRecord[]> {
-  let leads = await listLeads({
+  // Due-date windows are pushed into the query instead of filtering in memory.
+  let nextFollowUpFrom: Date | undefined;
+  let nextFollowUpBefore: Date | undefined;
+  if (filters?.due === "DUE_TODAY") {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    nextFollowUpFrom = start;
+    nextFollowUpBefore = end;
+  } else if (filters?.due === "OVERDUE") {
+    nextFollowUpBefore = new Date();
+  }
+
+  return listLeads({
     source: filters?.source && filters.source !== "ALL" ? filters.source : undefined,
     listingId: filters?.listingId || undefined,
     assignedAgentId: filters?.agentId || undefined,
@@ -1193,25 +1336,9 @@ export async function listPipelineLeads(filters?: PipelineFilters): Promise<Lead
       filters?.showingStatus && filters.showingStatus !== "ALL"
         ? (filters.showingStatus as ShowingWorkflowStatus)
         : undefined,
+    nextFollowUpFrom,
+    nextFollowUpBefore,
   });
-  if (filters?.due === "DUE_TODAY") {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    leads = leads.filter((lead) => {
-      const due = toDate(lead.nextFollowUpAt);
-      return due ? due >= start && due < end : false;
-    });
-  }
-  if (filters?.due === "OVERDUE") {
-    const now = new Date();
-    leads = leads.filter((lead) => {
-      const due = toDate(lead.nextFollowUpAt);
-      return due ? due < now : false;
-    });
-  }
-  return leads;
 }
 
 export async function addLeadNote(input: { leadId: string; authorId?: string | null; content: string }) {
@@ -1380,10 +1507,11 @@ export async function evaluateLead(leadId: string) {
     throw new Error("Lead not found");
   }
 
-  const listings = await listListings();
-  const listing = listings.find((item) => item.id === lead.listingId);
-  const rules = await listQualificationRules();
-  const result = evaluateLeadQualification({ lead, listing, rules });
+  const [listing, rules] = await Promise.all([
+    lead.listingId ? getListingById(lead.listingId) : Promise.resolve(null),
+    listQualificationRules(),
+  ]);
+  const result = evaluateLeadQualification({ lead, listing: listing ?? undefined, rules });
 
   await runWithFallback(
     async () => {

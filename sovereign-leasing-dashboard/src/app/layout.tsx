@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sovereign Leasing Command",
-  description: "Internal leasing workflow automation dashboard for Sovereign Realty NYC.",
+  title: "Sovereign Realty CRM",
+  description: "One operating view for every inquiry, showing, application, and lease.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

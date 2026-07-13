@@ -4,12 +4,11 @@ import { buildGmailQuery, fetchGmailInquiryMessages, getRequiredGoogleRedirectUr
 import { gmailImportRoles, gmailSettingsRoles, hasRole } from "@/lib/security";
 import { gmailSourceFilters } from "@/lib/types";
 import { StatusPill } from "@/components/status-pill";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-function formatIso(value: string) {
-  return value.replace("T", " ").slice(0, 16);
-}
+const formatIso = formatDateTime;
 
 export default async function GmailImportPage({
   searchParams,

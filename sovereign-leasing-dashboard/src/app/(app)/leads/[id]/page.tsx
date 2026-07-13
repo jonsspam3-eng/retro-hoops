@@ -42,14 +42,12 @@ import {
   listTemplates,
 } from "@/lib/repository";
 import { leadStatuses, showingStatuses } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-function formatIso(value?: string | null) {
-  if (!value) return "N/A";
-  return value.replace("T", " ").slice(0, 16);
-}
+const formatIso = formatDateTime;
 
 export default async function LeadDetailPage({
   params,
@@ -86,18 +84,21 @@ export default async function LeadDetailPage({
   }
 
   const listing = listings.find((item) => item.id === lead.listingId);
-  const aiSummary = await generateAiSummary({ lead, listing });
-  const aiMissing = await generateMissingInfoAnalysis({ lead, listing });
-  const aiNextAction = await generateAiNextActionRecommendation({ lead, listing });
-  const aiShowingDraft = await generateAiShowingConfirmationDraft({ lead, listing });
+  // AI helpers and the calendar placeholder are independent; run them concurrently.
+  const [aiSummary, aiMissing, aiNextAction, aiShowingDraft, calendarPlaceholder] = await Promise.all([
+    generateAiSummary({ lead, listing }),
+    generateMissingInfoAnalysis({ lead, listing }),
+    generateAiNextActionRecommendation({ lead, listing }),
+    generateAiShowingConfirmationDraft({ lead, listing }),
+    createShowingEventPlaceholder({
+      leadId: lead.id,
+      title: `Showing placeholder · ${lead.clientName}`,
+      startsAt: lead.confirmedShowingAt,
+      location: lead.showingLocation,
+      notes: "Phase 3 placeholder only. No external event sync yet.",
+    }),
+  ]);
   const derivedPauseReason = detectPauseReason({ lead, listing }) ?? lead.followUpPauseReason;
-  const calendarPlaceholder = await createShowingEventPlaceholder({
-    leadId: lead.id,
-    title: `Showing placeholder · ${lead.clientName}`,
-    startsAt: lead.confirmedShowingAt,
-    location: lead.showingLocation,
-    notes: "Phase 3 placeholder only. No external event sync yet.",
-  });
   const activeTemplate = templates[0];
   const followUpTemplate =
     templates.find((template) => template.id === "template_followup_24h") ??

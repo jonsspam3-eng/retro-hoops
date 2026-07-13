@@ -2,6 +2,7 @@ import { createTeamMemberAction } from "@/lib/actions";
 import { requireAppUser } from "@/lib/auth";
 import { adminRoles, hasRole } from "@/lib/security";
 import { listTeamMembers } from "@/lib/repository";
+import { PageHeader } from "@/components/page-header";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +17,10 @@ export default async function TeamPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Team Roles & Permissions</h2>
-        <p className="mt-1 text-sm text-[#6d6f78]">
-          Super Admin, Admin, Manager, Agent, Assistant, and Read-only role model for leasing workflow controls.
-        </p>
-      </div>
+      <PageHeader
+        title="Team Roles & Permissions"
+        description="Super Admin, Admin, Manager, Agent, Assistant, and Read-only role model for leasing workflow controls."
+      />
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
         <div className="card overflow-x-auto">
