@@ -1,6 +1,7 @@
 import { createTemplateAction } from "@/lib/actions";
 import { listTemplates } from "@/lib/repository";
 import { templateVariables } from "@/lib/template-renderer";
+import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -9,13 +10,12 @@ export default async function TemplatesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Email Templates</h2>
-        <p className="mt-1 text-sm text-[#6d6f78]">
-          Configure auto-send, draft-review, and manual modes with listing-specific placeholders.
-        </p>
-        <p className="mt-2 text-xs text-[#6d6f78]">Available variables: {templateVariables.join(", ")}</p>
-      </div>
+      <PageHeader
+        title="Email Templates"
+        description="Configure auto-send, draft-review, and manual modes with listing-specific placeholders."
+      >
+        <p className="mt-2 text-xs text-muted">Available variables: {templateVariables.join(", ")}</p>
+      </PageHeader>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_390px]">
         <div className="card space-y-3">

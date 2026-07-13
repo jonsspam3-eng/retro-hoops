@@ -11,7 +11,7 @@ import {
   createTemplate,
   evaluateLead,
   getLeadById,
-  listListings,
+  getListingById,
   saveLeadAiDraft,
   updateLeadWorkflowState,
   updateLeadListing,
@@ -316,7 +316,7 @@ export async function assignLeadAction(formData: FormData) {
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath("/leads");
-  redirect(`/leads/${leadId}?draft_created=1`);
+  redirect(`/leads/${leadId}`);
 }
 
 export async function assignLeadListingAction(formData: FormData) {
@@ -444,8 +444,7 @@ export async function regenerateAiDraftAction(formData: FormData) {
     throw new Error("Lead not found");
   }
 
-  const listings = await listListings();
-  const listing = listings.find((item) => item.id === lead.listingId);
+  const listing = lead.listingId ? (await getListingById(lead.listingId)) ?? undefined : undefined;
   const aiDraft = await generateAiReplyDraft({ lead, listing });
   await saveLeadAiDraft(leadId, aiDraft.content);
 
@@ -469,8 +468,7 @@ export async function generateFollowUpDraftAction(formData: FormData) {
   const leadId = requiredString(formData.get("leadId"), "Lead");
   const lead = await getLeadById(leadId);
   if (!lead) throw new Error("Lead not found");
-  const listings = await listListings();
-  const listing = listings.find((row) => row.id === lead.listingId);
+  const listing = lead.listingId ? (await getListingById(lead.listingId)) ?? undefined : undefined;
 
   const draft = await generateAiReplyDraft({ lead, listing });
   await saveLeadAiDraft(leadId, draft.content);

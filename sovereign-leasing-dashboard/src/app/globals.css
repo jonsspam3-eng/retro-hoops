@@ -1,13 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8f6f3;
+  --background: #f6f3ef;
   --foreground: #050b23;
+  --surface: #ffffff;
+  --muted: #676a78;
+  --line: #e7e0d7;
+  --ink: #050b23;
+  --accent: #ddbda2;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,18 +26,35 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 input,
 select,
 textarea {
-  @apply w-full rounded-lg border border-[#d8d4ce] bg-white px-3 py-2 text-sm text-[#050b23] outline-none ring-[#050b23]/30 transition focus:ring-2;
+  @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink shadow-xs outline-none transition placeholder:text-muted/70 focus:border-ink/40 focus:ring-2 focus:ring-ink/15 disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 button {
-  @apply rounded-lg bg-[#050b23] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#111f4a] disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white shadow-xs transition hover:bg-[#111f4a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink/60 active:translate-y-px disabled:pointer-events-none disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply bg-accent text-ink hover:bg-[#d2ab89];
+}
+
+.btn-ghost {
+  @apply border border-line bg-white text-ink shadow-none hover:bg-[#f4efe8];
 }
 
 .card {
-  @apply rounded-2xl border border-[#e7dfd7] bg-white p-4 shadow-sm;
+  @apply rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_2px_rgba(5,11,35,0.04),0_8px_24px_-12px_rgba(5,11,35,0.08)];
+}
+
+.table-head {
+  @apply pb-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 55%, white);
 }

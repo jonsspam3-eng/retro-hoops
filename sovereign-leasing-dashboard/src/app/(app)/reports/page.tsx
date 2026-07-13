@@ -1,4 +1,5 @@
 import { MetricCard } from "@/components/metric-card";
+import { PageHeader } from "@/components/page-header";
 import { getReportingSnapshot } from "@/lib/repository";
 
 export const dynamic = "force-dynamic";
@@ -8,12 +9,10 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Reporting & Analytics</h2>
-        <p className="mt-1 text-sm text-[#6d6f78]">
-          Inquiry volume, source performance, qualification ratio, and downstream conversion indicators.
-        </p>
-      </div>
+      <PageHeader
+        title="Reporting & Analytics"
+        description="Inquiry volume, source performance, qualification ratio, and downstream conversion indicators."
+      />
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total inquiries" value={report.totalInquiries} />

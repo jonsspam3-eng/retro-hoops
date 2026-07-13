@@ -1,5 +1,6 @@
 import { createRuleAction } from "@/lib/actions";
 import { listListings, listQualificationRules } from "@/lib/repository";
+import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -8,12 +9,10 @@ export default async function RulesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Qualification Rule Engine</h2>
-        <p className="mt-1 text-sm text-[#6d6f78]">
-          Rules are configurable globally or by listing. Score explanations are stored for auditability.
-        </p>
-      </div>
+      <PageHeader
+        title="Qualification Rule Engine"
+        description="Rules are configurable globally or by listing. Score explanations are stored for auditability."
+      />
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_420px]">
         <div className="card space-y-3">

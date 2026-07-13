@@ -13,14 +13,13 @@ import { detectPauseReason, groupPipelineLeads } from "@/lib/follow-up";
 import { listFollowUpSequences, listListings, listPipelineLeads, listTeamMembers, listTemplates } from "@/lib/repository";
 import { adminRoles, hasRole } from "@/lib/security";
 import { followUpStages, inquirySources, leadStatuses, showingStatuses, type PipelineFilters } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
+import { PageHeader } from "@/components/page-header";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-function formatIso(value?: string | null) {
-  if (!value) return "N/A";
-  return value.replace("T", " ").slice(0, 16);
-}
+const formatIso = formatDateTime;
 
 function mapFilterValue(value?: string) {
   if (!value || value === "ALL") return undefined;
@@ -74,12 +73,10 @@ export default async function PipelinePage({
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Follow-Up Pipeline</h2>
-        <p className="mt-1 text-sm text-[#6d6f78]">
-          Phase 3 workflow board for follow-up queues, showing progression, and human-reviewed Gmail drafts.
-        </p>
-      </div>
+      <PageHeader
+        title="Follow-Up Pipeline"
+        description="Workflow board for follow-up queues, showing progression, and human-reviewed Gmail drafts."
+      />
 
       <div className="card">
         <form className="grid grid-cols-1 gap-2 md:grid-cols-4 xl:grid-cols-8" method="get">

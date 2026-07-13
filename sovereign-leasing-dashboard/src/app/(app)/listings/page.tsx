@@ -1,6 +1,7 @@
 import { createListingAction } from "@/lib/actions";
 import { listListings } from "@/lib/repository";
 import { StatusPill } from "@/components/status-pill";
+import { PageHeader } from "@/components/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +10,10 @@ export default async function ListingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Listing Database</h2>
-        <p className="mt-1 text-sm text-[#6d6f78]">
-          Match inquiries to listings using address, apartment number, and platform links.
-        </p>
-      </div>
+      <PageHeader
+        title="Listing Database"
+        description="Match inquiries to listings using address, apartment number, and platform links."
+      />
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
         <div className="card overflow-x-auto">
