@@ -110,14 +110,16 @@ export default async function LeadsPage({
                 title={item.description}
                 className={clsx(
                   "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition",
-                  active ? "bg-ink text-white shadow-sm" : "bg-ink/5 text-ink hover:bg-ink/10",
+                  active
+                    ? "bg-ink text-white shadow-sm"
+                    : "border border-line bg-white text-ink hover:border-ink/25 hover:bg-ink/5",
                 )}
               >
                 {item.label}
                 <span
                   className={clsx(
                     "rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
-                    active ? "bg-white/20" : "bg-ink/10 text-muted",
+                    active ? "bg-white/20" : "bg-ink/8 text-muted",
                   )}
                 >
                   {countForView(item, statusCounts)}
